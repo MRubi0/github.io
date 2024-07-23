@@ -194,29 +194,13 @@ def upload_tours(request):
             return Response({'error': 'Usuario no autenticado'}, status=401)     
         form = TourForm(request.POST, request.FILES)       
 
-        
-        
-        # if form.is_valid():
-            # tour = form.save(commit=False)
-            # tour.user = request.user
-            # tour.image = request.FILES['imagen'] if 'imagen' in request.FILES else None
-
-            # if tour.tipo_de_tour=='leisure':
-                # tour.tipo_de_tour='ocio'
-            # elif tour.tipo_de_tour=='nature':
-                # tour.tipo_de_tour='naturaleza'
-            
-            # tour.original = 'original'
-           
-            # tour.save()
-            # print(tour)
-            # Procesar pasos adicionales
 
         if form.is_valid():        
             tour_es = form.save(commit=False)
             tour_destino=request.POST['idioma_destino']
             tour_es.user = request.user
             tour_es.idioma = request.POST['idioma']
+            tour_es.original = 'original'
             
             next_id_es = get_next_id()
 
@@ -241,6 +225,7 @@ def upload_tours(request):
                 tour_es.tipo_de_tour = 'naturaleza'
            
             
+            
             tour_es.validado = False
             tour_es.save()
 
@@ -249,13 +234,14 @@ def upload_tours(request):
             tour_en = Tour()
             tour_en.user = request.user
             tour_en.imagen = tour_es.imagen
+            tour_en.original = tour_es.id   
             tour_en.audio = tour_es.audio
             tour_en.tipo_de_tour = tour_es.tipo_de_tour
             tour_en.recorrido=tour_es.recorrido
             tour_en.duracion=tour_es.duracion
             tour_en.validado = False
             tour_en.descripcion = translate_text(tour_es.descripcion, tour_es.idioma, tour_destino)
-            tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)            
+            tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)         
             tour_en.save()
             
 
