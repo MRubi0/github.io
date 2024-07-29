@@ -15,6 +15,7 @@ from datetime import datetime
 from math import atan2, cos, radians, sin, sqrt
 import io
 import boto3
+import stripe
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from PIL import Image
 from django.contrib import messages
@@ -44,11 +45,44 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+
+
 from .forms import (AudioFileForm, CustomUserCreationForm, EditProfileForm,
                     EncuestaForm, GuideForm, ImageFileForm, LocationForm,
                     TourForm, ValoracionForm)
 from .models import (AudioFile, CustomUser, Encuesta, Guide, ImageFile,
                      Location, Paso, Tour, TourRecord, TourRelation, Valoracion, PasoSerializer, TourSerializer)
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+
+
+@csrf_exempt
+def create_checkout_session(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        amount = data.get('amount', 0)
+        try:
+            session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[{
+                    'price_data': {
+                        'currency': 'eur',
+                        'product_data': {
+                            'name': 'Donación',
+                        },
+                        'unit_amount': amount,
+                    },
+                    'quantity': 1,
+                }],
+                mode='payment',
+                success_url='http://localhost:4200/success',
+                cancel_url='http://localhost:4200/cancel',
+            )
+            return JsonResponse({'id': session.id})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=403)
 
 
 

@@ -8,7 +8,7 @@ from LTtApp import views
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
+from LTtApp.views import create_checkout_session
 #app_name = 'LTtApp'
 
 urlpatterns = [
@@ -60,7 +60,9 @@ urlpatterns = [
     path('translate_transcription/<int:tour_id>/', views.translate_transcription, name='translate_transcription'), 
     path('convert_text_to_audio/<int:tour_id>/', views.convert_text_to_audio, name='convert_text_to_audio'),
     path('copy-audios/', views.copy_audios_view, name='copy-audios'),
-    path('copy-images/', views.copy_images_view, name='copy-images')
+    path('copy-images/', views.copy_images_view, name='copy-images'),
+    path('create-checkout-session/', create_checkout_session, name='create-checkout-session')
+
 
 
 

@@ -108,6 +108,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'LetsTourTec.wsgi.application'
 
 
+# settings.py
+STRIPE_SECRET_KEY = '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'
+STRIPE_PUBLISHABLE_KEY = 'pk_live_51PbuRQHruQ7absctI9yFcPLBHfXE52gBuzHYtU5IP6A6aDJ7wdksaIJ08lfi0qPl7onM6KhHRMoToIS7c1Ymw6gy00BeAWaMyq'
+
+
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
