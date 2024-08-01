@@ -1155,34 +1155,26 @@ def crear_valoracion(request):
 
 
 def media_valoracion_tour(request, tour_id):
-    print("Empieza printeando (bien)")
     cache_key = f"media_valoracion_{tour_id}"
     media_puntuacion = cache.get(cache_key)
     if media_puntuacion is None:
         tour = get_object_or_404(Tour, pk=tour_id)
-        print("printeando Tour encontrado:", tour)
         relation = TourRelation.objects.filter(tour_es=tour).first() or TourRelation.objects.filter(tour_en=tour).first()
-       # print("printeando relacion (bien", relation)
         valoraciones = Valoracion.objects.filter(tour=tour)
-       # print("printeando valoraciones", valoraciones)
 
         if tour.original != 'original':
-                print("printeando Entra en bucle 1")
                 # Es una traducción, obtener valoraciones del tour original
                 tour_original = get_object_or_404(Tour, pk=tour.original)
                 valoraciones = Valoracion.objects.filter(tour=tour) | Valoracion.objects.filter(tour=tour_original)
-                print("printeando valoraciones si tour no original", valoraciones)
                 
         else:
-            print("printeando Entra en bucle 2")
             # Es un tour original, obtener valoraciones de sus traducciones
             traducciones = Tour.objects.filter(original=tour.id)
             for traduccion in traducciones:
                 valoraciones = valoraciones | Valoracion.objects.filter(tour=traduccion)
-                print("printeando valoraciones si tour original", valoraciones)
+                
         resultado = valoraciones.aggregate(media_puntuacion=Avg('puntuacion'))
         media_puntuacion = resultado.get('media_puntuacion', 5.0)
-        print("media puntuacion printeando", media_puntuacion)
         if media_puntuacion == 0.0:
             media_puntuacion = 5.0
         cache.set(cache_key, media_puntuacion, timeout=3600*25)  # Lo guarda en caché por 25 horas
