@@ -78,3 +78,4 @@ djangorestframework-simplejwt
 
 celery==5.2.3  # O la versión más reciente que prefieras
 redis==4.3.4  # O la versión más reciente que prefieras
+stripe
