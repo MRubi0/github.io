@@ -230,29 +230,13 @@ def upload_tours(request):
             return Response({'error': 'Usuario no autenticado'}, status=401)     
         form = TourForm(request.POST, request.FILES)       
 
-        
-        
-        # if form.is_valid():
-            # tour = form.save(commit=False)
-            # tour.user = request.user
-            # tour.image = request.FILES['imagen'] if 'imagen' in request.FILES else None
-
-            # if tour.tipo_de_tour=='leisure':
-                # tour.tipo_de_tour='ocio'
-            # elif tour.tipo_de_tour=='nature':
-                # tour.tipo_de_tour='naturaleza'
-            
-            # tour.original = 'original'
-           
-            # tour.save()
-            # print(tour)
-            # Procesar pasos adicionales
 
         if form.is_valid():        
             tour_es = form.save(commit=False)
             tour_destino=request.POST['idioma_destino']
             tour_es.user = request.user
             tour_es.idioma = request.POST['idioma']
+            tour_es.original = 'original'
             
             next_id_es = get_next_id()
 
@@ -277,6 +261,7 @@ def upload_tours(request):
                 tour_es.tipo_de_tour = 'naturaleza'
            
             
+            
             tour_es.validado = False
             tour_es.save()
 
@@ -285,13 +270,14 @@ def upload_tours(request):
             tour_en = Tour()
             tour_en.user = request.user
             tour_en.imagen = tour_es.imagen
+            tour_en.original = tour_es.id   
             tour_en.audio = tour_es.audio
             tour_en.tipo_de_tour = tour_es.tipo_de_tour
             tour_en.recorrido=tour_es.recorrido
             tour_en.duracion=tour_es.duracion
             tour_en.validado = False
             tour_en.descripcion = translate_text(tour_es.descripcion, tour_es.idioma, tour_destino)
-            tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)            
+            tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)         
             tour_en.save()
             
 
@@ -1216,12 +1202,18 @@ def media_valoracion_tour(request, tour_id):
         tour = get_object_or_404(Tour, pk=tour_id)
         relation = TourRelation.objects.filter(tour_es=tour).first() or TourRelation.objects.filter(tour_en=tour).first()
         valoraciones = Valoracion.objects.filter(tour=tour)
-        if relation:
-            if relation.tour_es == tour and relation.tour_en:
-                valoraciones = valoraciones | Valoracion.objects.filter(tour=relation.tour_en)
-            elif relation.tour_en == tour and relation.tour_es:
-                valoraciones = valoraciones | Valoracion.objects.filter(tour=relation.tour_es)
 
+        if tour.original != 'original':
+                # Es una traducción, obtener valoraciones del tour original
+                tour_original = get_object_or_404(Tour, pk=tour.original)
+                valoraciones = Valoracion.objects.filter(tour=tour) | Valoracion.objects.filter(tour=tour_original)
+                
+        else:
+            # Es un tour original, obtener valoraciones de sus traducciones
+            traducciones = Tour.objects.filter(original=tour.id)
+            for traduccion in traducciones:
+                valoraciones = valoraciones | Valoracion.objects.filter(tour=traduccion)
+                
         resultado = valoraciones.aggregate(media_puntuacion=Avg('puntuacion'))
         media_puntuacion = resultado.get('media_puntuacion', 5.0)
         if media_puntuacion == 0.0:
