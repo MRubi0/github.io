@@ -1,2 +1,0 @@
-id,password,last_login,is_superuser,email,first_name,last_name,is_active,is_staff,date_joined,avatar,bio
-2,pbkdf2_sha256$600000$P59c6NS29go6vadznDpeNO$5bdjXO5mwFCdyXgOV/YaYJLeBzyg5IKGyvMVlxRIHUc=,2023-05-01 17:09:20.300299,0,miguel_ortiz_rejon@hotmail.com,Miguel,Ortiz,1,0,2023-05-01 17:09:20.275220,,
