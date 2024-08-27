@@ -62,13 +62,7 @@ urlpatterns = [
     path('copy-audios/', views.copy_audios_view, name='copy-audios'),
     path('copy-images/', views.copy_images_view, name='copy-images'),
     path('create-checkout-session/', create_checkout_session, name='create-checkout-session')
-
-
-
-
-
-
-    
+    path('api/tours/<int:tour_id>/validado/', views.update_validated_field, name='update_validated_field')    
     ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
