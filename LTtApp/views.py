@@ -2080,3 +2080,91 @@ def get_next_id():
         """)
         row = cursor.fetchone()
     return row[0] if row else None
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_validated_field(request, tour_id):
+    tour = get_object_or_404(Tour, id=tour_id)
+
+    if request.method == 'PUT':
+        if not request.user.is_authenticated:
+            return Response({'error': 'Usuario no autenticado'}, status=401)
+        
+        validado = request.data.get('validado', None)
+        if validado is None:
+            return Response({'error': 'El campo "validado" es requerido'}, status=400)
+        
+        tour.validado = validado
+        tour.save()
+
+        if validado:
+            # Verificar si ya existe una relación entre los tours en español e inglés
+            existing_relation = TourRelation.objects.filter(tour_es_id=tour.id).first()
+            
+            if not existing_relation:
+                # Si no existe una relación, buscar por el tour en inglés relacionado
+                existing_relation = TourRelation.objects.filter(tour_en_id=tour.id).first()
+            
+            if existing_relation:
+                return Response({'message': 'El tour ya tiene una traducción existente, no se creó una nueva traducción.'}, status=200)
+
+            # Crear la traducción solo si no existe una relación
+            tour_destino = "en"
+
+            tour_en = Tour(
+                user=tour.user,
+                imagen=tour.imagen,
+                audio=tour.audio,
+                tipo_de_tour=tour.tipo_de_tour,
+                recorrido=tour.recorrido,
+                duracion=tour.duracion,
+                validado=True,
+                descripcion=translate_text(tour.descripcion, tour.idioma, tour_destino),
+                titulo=translate_text(tour.titulo, tour.idioma, tour_destino)
+            )
+            tour_en.save()
+
+            for paso_es in Paso.objects.filter(tour=tour):
+                paso_en = Paso(
+                    tour=tour_en,
+                    description=translate_text(paso_es.description, tour.idioma, tour_destino),
+                    tittle=translate_text(paso_es.tittle, tour.idioma, tour_destino),
+                    latitude=paso_es.latitude,
+                    longitude=paso_es.longitude,
+                    audio=paso_es.audio,
+                    image=paso_es.image
+                )
+                paso_en.save()
+
+            tour_relation = TourRelation(tour_es=tour if tour.idioma == "es" else tour_en,
+                                         tour_en=tour_en if tour.idioma == "es" else tour)
+            tour_relation.save()
+
+        try:
+            relation = TourRelation.objects.filter(tour_es_id=tour_id).first()
+            if relation:
+                if tour.idioma == "en":                
+                    related_tour = relation.tour_en_id
+                else:
+                    related_tour = tour_id
+            else:
+                relation = TourRelation.objects.filter(tour_en_id=tour_id).first()
+                if relation:
+                    if tour.idioma == "es":             
+                        related_tour = relation.tour_es_id
+                    else:
+                        related_tour = relation.tour_en_id
+                else:
+                    related_tour = tour_id
+
+            tour_related = get_object_or_404(Tour, pk=related_tour)
+            tour_related.validado = validado
+            tour_related.save()
+        except TourRelation.DoesNotExist:
+            pass
+        except Exception as e:
+            return Response({'error': f"Excepción inesperada: {e}"}, status=500)
+
+        return Response({'message': 'Campo "validado" actualizado correctamente en ambos tours y traducción creada si corresponde'}, status=200)
+    else:
+        return Response({'error': 'Método no permitido'}, status=405)
