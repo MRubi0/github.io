@@ -538,7 +538,9 @@ def tour_detail(request, tour_id):
 
 
 def get_latest_tours(request):
-    # Lista de tipos de tours
+    idioma = request.GET.get('language', None)
+    if not idioma:
+        return JsonResponse({"error": "Falta el parámetro: language"}, status=400)
     tour_types = ['cultural', 'naturaleza','ocio']
 
     # Consulta el último tour de cada tipo
@@ -548,7 +550,7 @@ def get_latest_tours(request):
 
     for t in tour_types:
         try:
-            latest_tour = Tour.objects.filter(tipo_de_tour=t).latest('created_at')
+            latest_tour = Tour.objects.filter(tipo_de_tour=t, idioma=idioma).latest('created_at')
             tour_data = {
                 'id': latest_tour.id,
                 'titulo': latest_tour.titulo,
@@ -581,9 +583,9 @@ def get_random_tours(request):
     if not idioma:
         return JsonResponse({"error": "Falta el parámetro: language"}, status=400)
     
-    ocio_tours = Tour.objects.filter(tipo_de_tour="ocio", idioma=idioma)
-    naturaleza_tours = Tour.objects.filter(tipo_de_tour="naturaleza",idioma=idioma)
-    cultural_tours = Tour.objects.filter(tipo_de_tour="cultural", idioma=idioma)
+    ocio_tours = Tour.objects.filter(tipo_de_tour="ocio", idioma=idioma, validado=True)
+    naturaleza_tours = Tour.objects.filter(tipo_de_tour="naturaleza",idioma=idioma, validado=True)
+    cultural_tours = Tour.objects.filter(tipo_de_tour="cultural", idioma=idioma, validado=True)
                
     # Elige un tour aleatorio de cada categoría
     random_tours = {
@@ -678,7 +680,7 @@ def get_nearest_tours_all(request):
         longitud_usuario = None
 
     # Obtener todos los tours filtrados por idioma
-    tours = Tour.objects.filter(idioma=idioma)
+    tours = Tour.objects.filter(idioma=idioma, validado=True)
     tours_with_distances = []
     if latitud_usuario is not None and longitud_usuario is not None:
         for tour in tours:
