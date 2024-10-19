@@ -61,7 +61,7 @@ urlpatterns = [
     path('convert_text_to_audio/<int:tour_id>/', views.convert_text_to_audio, name='convert_text_to_audio'),
     path('copy-audios/', views.copy_audios_view, name='copy-audios'),
     path('copy-images/', views.copy_images_view, name='copy-images'),
-    path('create-checkout-session/', create_checkout_session, name='create-checkout-session')
+    path('create-checkout-session/', create_checkout_session, name='create-checkout-session'),
     path('api/tours/<int:tour_id>/validado/', views.update_validated_field, name='update_validated_field')    
     ]
 if settings.DEBUG:
