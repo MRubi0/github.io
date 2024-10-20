@@ -196,23 +196,38 @@ def get_user_tours(request):
 
 @csrf_exempt
 def login_view(request):
+    print("Hello, estamos en login_view")
     if request.method == 'POST':
-        # Assuming you send 'username' and 'password' in the request body
-        username = request.POST.get('username')
+        print(f"Request body: {request.body}")
+        print(f"Request POST data: {request.POST}")
+        
+        email = request.POST.get('username')  # Si estás enviando el email en el campo 'username'
         password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
 
-        if user is not None:
-            login(request, user)
-            # Return a JSON response indicating success
-            return JsonResponse({'success': True})
-        else:
-            # Return a JSON response indicating failure
+        print(f"Email: {email}, Password: {password}")
+        
+        # Buscar al usuario por su email
+        try:
+            user = CustomUser.objects.get(email=email)
+            print(f"Usuario encontrado: {user.username}")
+            
+            # Intentar autenticar usando el username del usuario
+            user = authenticate(request, username=user.username, password=password)
+
+            if user is not None:
+                print(f"Usuario autenticado: {user.username}")
+                login(request, user)
+                return JsonResponse({'success': True})
+            else:
+                print("Fallo de autenticación")
+                return JsonResponse({'error': 'Invalid credentials'}, status=401)
+        except CustomUser.DoesNotExist:
+            print(f"No existe un usuario con el email {email}")
             return JsonResponse({'error': 'Invalid credentials'}, status=401)
+    else:
+        print("Método GET no soportado para login")
+        return JsonResponse({'error': 'GET request not supported'}, status=405)
 
-    # If it's a GET request, you may want to handle it differently
-    # This part depends on your application's logic
-    return JsonResponse({'error': 'GET request not supported'}, status=405)
 
 @csrf_exempt
 @api_view(['POST'])
