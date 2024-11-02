@@ -53,22 +53,24 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         'auth.Group',
         verbose_name=_('groups'),
         blank=True,
-        related_query_name="customuser",
-        related_name="customuser_set",
         help_text=_(
             'The groups this user belongs to. A user will get all permissions '
             'granted to each of their groups.'
         ),
-    )
+        related_name="user_set",  
+        related_query_name="user" 
+)
     user_permissions = models.ManyToManyField(
         'auth.Permission',
         verbose_name=_('user permissions'),
         blank=True,
-        related_query_name="customuser",
-        related_name="customuser_set",
         help_text=_('Specific permissions for this user.'),
-    )
-
+        related_name="user_set",  
+        related_query_name="user" 
+)
+    # class Meta:
+    #         db_table = 'users'  # Especifica la tabla que deseas usar
+    #         managed = False     # Indica que Django no debe gestionar la tabla
 
 class Guide(models.Model):
     title = models.CharField(max_length=200)
@@ -96,20 +98,16 @@ class Location(models.Model):
 class Tour(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     titulo = models.CharField(max_length=255)
-    imagen = models.ImageField(upload_to='Tour_imagen/', max_length=255)  # Aumentado el tamaño
+    imagen = models.ImageField(upload_to='Tour_imagen/', max_length=255)
     descripcion = models.TextField()
     audio = models.FileField(upload_to='Tour_audio/', null=True, blank=True)
     latitude = models.FloatField(default=0.0)
     longitude = models.FloatField(default=0.0)
     duracion = models.PositiveIntegerField("Duración en minutos", null=True, blank=True)
-
-    recorrido = models.FloatField(null=True, blank=True)   # Recorrido en kilómetros
+    recorrido = models.FloatField(null=True, blank=True)
     original = models.TextField(null=True, blank=True)
-    
-
     idioma = models.CharField(max_length=2, default='es')
     validado = models.BooleanField(default=False)
-
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     TIPO_DE_TOUR_CHOICES = [
@@ -118,6 +116,12 @@ class Tour(models.Model):
         ('leisure', 'Ocio'),
     ]
     tipo_de_tour = models.CharField(max_length=10, choices=TIPO_DE_TOUR_CHOICES, default=None, blank=True, null=True)
+
+    # Agrega el campo suma_valoraciones
+    suma_valoraciones = models.IntegerField(default=0)
+
+    # Si también utilizas total_valoraciones, agrégalo
+    total_valoraciones = models.IntegerField(default=0)
 
     def __str__(self):
         return self.titulo

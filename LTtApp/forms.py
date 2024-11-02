@@ -59,6 +59,7 @@ class TourForm(forms.ModelForm):
         model = Tour
         fields = ['titulo', 'imagen', 'descripcion', 'audio', 'latitude', 'longitude', 'tipo_de_tour', 'duracion', 'recorrido', 'original']
 
+
 class PasoForm(forms.ModelForm):
     class Meta:
         model = Paso

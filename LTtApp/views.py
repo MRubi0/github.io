@@ -233,6 +233,8 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_tours(request):
+    print("llegamos aqui")
+    print(request)
     error_message = None
     auth_header = request.META.get('HTTP_AUTHORIZATION')
     if auth_header:
@@ -246,41 +248,59 @@ def upload_tours(request):
         form = TourForm(request.POST, request.FILES)       
 
 
-        if form.is_valid():        
+        if form.is_valid():     
+            print("tour valido")
+   
             tour_es = form.save(commit=False)
-            tour_destino=request.POST['idioma_destino']
+            tour_destino = request.POST['idioma_destino']
             tour_es.user = request.user
             tour_es.idioma = request.POST['idioma']
             tour_es.original = 'original'
+            tour_es.suma_valoraciones = 0  # Asignar antes de guardar
+            tour_es.total_valoraciones = 0
+            tour_es.validado = False  # Si es un campo obligatorio
+
+
+           
             
+            
+            tour_es.validado = False
+            tour_es.suma_valoraciones = 0
+
             next_id_es = get_next_id()
 
+            next_id_en = get_next_id()
+ 
+
             print('next_id ----> ', next_id_es)
-            
+
             if 'imagen' in request.FILES:
                 image_file = request.FILES['imagen']
                 timestamp = int(time.time() * 1000)
                 image_name = f"{str(next_id_es).zfill(5)}/{timestamp}.jpg"
                 
-                tour_es.imagen.save(image_name, image_file)
+                tour_es.imagen.save(image_name, image_file, save=False)
 
+            # Asegúrate de que 'audio' no cause el mismo problema
             if 'audio' in request.FILES:
                 audio_file = request.FILES['audio']
                 timestamp = int(time.time() * 1000)
                 audio_name = f"{str(next_id_es).zfill(5)}/aud_{timestamp}.mp3"
-                tour_es.audio.save(audio_name, audio_file)    
+                tour_es.audio.save(audio_name, audio_file, save=False)  
 
             if tour_es.tipo_de_tour == 'leisure':
                 tour_es.tipo_de_tour = 'ocio'
             elif tour_es.tipo_de_tour == 'nature':
                 tour_es.tipo_de_tour = 'naturaleza'
-           
-            
-            
-            tour_es.validado = False
-            tour_es.save()
+            print("voy a imprimir el tour")
+            print(tour_es)
+            print("FINAL")
 
-            next_id_en = get_next_id()
+            print(f"suma_valoraciones antes de guardar: {tour_es.suma_valoraciones}")
+            tour_es.save()
+            
+
+            
 
             tour_en = Tour()
             tour_en.user = request.user
@@ -293,6 +313,8 @@ def upload_tours(request):
             tour_en.validado = False
             tour_en.descripcion = translate_text(tour_es.descripcion, tour_es.idioma, tour_destino)
             tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)         
+            tour_en.suma_valoraciones = 0 
+            tour_en.total_valoraciones = 0
             tour_en.save()
             
 
@@ -354,11 +376,17 @@ def upload_tours(request):
                 else:
                     break
 
+
             # Crear la relación entre los tours
             tour_relation = TourRelation(tour_es=tour_es, tour_en=tour_en)
             tour_relation.save()
 
             return Response({'message': 'Gracias por tu esfuerzo, el tour sera validado por nuestro equipo'})
+        else:
+            print("tour no valido")
+            print(form.errors)  # Esto te ayudará a ver los errores en la consola
+            return Response({'error': 'Formulario no válido', 'detalles': form.errors}, status=400)
+
 
 
 def upload_to_func(instance, filename):
