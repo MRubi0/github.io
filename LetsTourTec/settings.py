@@ -123,10 +123,15 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-'''
+
 DATABASES = {
     'default': dj_database_url.config(default='postgres://jpqpmpvl:6JJb4O7-yBOywY6m03AWHOqLf7XFqhTd@lucky.db.elephantsql.com/jpqpmpvl')
 }
+'''
+DATABASES = {
+    'default': dj_database_url.config(default='postgres://postgres.lkhgxorngfrjuycfhxll:jlOg0107****@aws-0-eu-west-2.pooler.supabase.com:6543/postgres')
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 AUTH_USER_MODEL = 'LTtApp.CustomUser'
