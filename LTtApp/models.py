@@ -327,3 +327,9 @@ class Valoracion(models.Model):
 
     def __str__(self):
         return f"{self.user.username if self.user else 'Anónimo'} - {self.tour.titulo} - {self.puntuacion}"
+
+class KeepAlive(models.Model):
+    updated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"KeepAlive row at {self.updated_at}"

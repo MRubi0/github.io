@@ -44,14 +44,14 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-
+from threading import Timer
 
 
 from .forms import (AudioFileForm, CustomUserCreationForm, EditProfileForm,
                     EncuestaForm, GuideForm, ImageFileForm, LocationForm,
                     TourForm, ValoracionForm)
 from .models import (AudioFile, CustomUser, Encuesta, Guide, ImageFile,
-                     Location, Paso, Tour, TourRecord, TourRelation, Valoracion, PasoSerializer, TourSerializer)
+                     Location, Paso, Tour, TourRecord, TourRelation, Valoracion, PasoSerializer, TourSerializer, KeepAlive)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -2213,3 +2213,13 @@ def update_validated_field(request, tour_id):
         return Response({'message': 'Campo "validado" actualizado correctamente en ambos tours y traducción creada si corresponde'}, status=200)
     else:
         return Response({'error': 'Método no permitido'}, status=405)
+
+def start_keep_alive_timer():
+    def insert_keep_alive():
+        # Crear una nueva fila en la tabla KeepAlive
+        KeepAlive.objects.create()
+        print("Keep-alive row inserted automatically.")
+        # Reprogramar la función para que se ejecute nuevamente después de 24 horas
+        Timer(86400, insert_keep_alive).start()  # 86400 segundos = 24 horas
+    insert_keep_alive
+
