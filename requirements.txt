@@ -1,3 +1,4 @@
+python>0, <3.11
 markupsafe==1.1.1
 gunicorn
 cython>=0.29.21
