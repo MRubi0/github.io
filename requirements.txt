@@ -55,7 +55,7 @@ tornado==6.1
 tqdm==4.56.0
 traitlets==5.1.1
 wcwidth==0.2.5
-GDAL==3.4.3
+
 asgiref==3.6.0
 Django==4.2
 
@@ -79,3 +79,4 @@ djangorestframework-simplejwt
 celery==5.2.3  # O la versión más reciente que prefieras
 redis==4.3.4  # O la versión más reciente que prefieras
 stripe
+GDAL==3.4.3
