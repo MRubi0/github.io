@@ -13,4 +13,4 @@ djangorestframework-simplejwt
 stripe==12.1.0
 folium==0.14.0
 requests==2.31.0
-gdal>=3.6,<3.9django-storages
+gdal==3.6.2
