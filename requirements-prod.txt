@@ -1,5 +1,6 @@
 Django==4.2
-gunicorn
+gunicorn==23.1.0
+
 psycopg2-binary==2.9.6
 redis==4.3.4
 celery==5.2.3
