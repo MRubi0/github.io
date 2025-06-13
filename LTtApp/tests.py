@@ -5,13 +5,15 @@ from django.contrib.auth import get_user_model
 from unittest.mock import patch, MagicMock
 from django.core.files.uploadedfile import SimpleUploadedFile # For file uploads in tests
 import json # For POSTing JSON data
+from django.conf import settings # For accessing settings
 
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
 from .models import Tour, Paso, CustomUser, TourRelation, Valoracion, TourRecord
 from .tasks import process_transcription_task, process_translation_task, process_synthesis_task
-from .views import list_latest_tours_by_category, start_transcription_job_view
+# Import views to test directly if needed, or use client for API views
+# from .views import list_latest_tours_by_category, start_transcription_job_view # Not used directly
 
 User = get_user_model()
 
@@ -59,34 +61,33 @@ class ModelTests(TestCase):
         self.assertEqual(str(relation), f"Relation: ES Tour ID {self.tour.id} - EN Tour ID {tour2.id}")
 
     def test_tour_record_str(self):
-        # The __str__ method uses user.username, but CustomUser uses email as USERNAME_FIELD
-        # Let's assume it should show email or first/last name. Current model uses username.
-        # If CustomUser's __str__ is email, then user.username might not exist.
-        # Let's assume user.username is not set and __str__ should gracefully handle it or use email.
-        # For now, I'll test based on the current __str__ which uses username, this might fail if username is not set.
-        # self.assertEqual(str(self.tour_record), f"{self.user.username} - {self.tour.titulo} - {self.tour_record.date.strftime('%Y-%m-%d')}")
-        # A better test if username is not guaranteed:
         self.assertTrue(self.tour.titulo in str(self.tour_record))
 
 
     def test_valoracion_str(self):
-        self.assertTrue(self.user.email in str(self.valoracion)) # Assuming __str__ uses email if username not present
+        self.assertTrue(self.user.email in str(self.valoracion))
         self.assertTrue(self.tour.titulo in str(self.valoracion))
 
 
     def test_tour_as_dict(self):
-        with patch.object(self.tour.imagen, 'url', MagicMock(return_value='http://example.com/image.jpg')):
-            with patch.object(self.tour.audio, 'url', MagicMock(return_value='http://example.com/audio.mp3')):
+        # Ensure that the as_dict method includes the 'original' field.
+        expected_original_value = self.tour.original  # Assuming 'original' field exists
+
+        # Mock file fields if .url is accessed and storage is not default
+        with patch.object(self.tour.imagen, 'url', MagicMock(return_value='http://example.com/image.jpg'), create=True):
+            with patch.object(self.tour.audio, 'url', MagicMock(return_value='http://example.com/audio.mp3'), create=True):
                 tour_dict = self.tour.as_dict()
                 self.assertEqual(tour_dict['titulo'], 'Test Tour Title')
-                self.assertEqual(tour_dict['user_id'], self.user.id) # Changed to user_id
+                self.assertEqual(tour_dict['user_id'], self.user.id)
                 self.assertEqual(tour_dict['imagen_url'], 'http://example.com/image.jpg')
                 self.assertEqual(tour_dict['audio_url'], 'http://example.com/audio.mp3')
                 self.assertEqual(tour_dict['latitude'], 10.0)
+                self.assertEqual(tour_dict['original'], expected_original_value)
+
 
     def test_paso_as_dict(self):
-        with patch.object(self.paso.image, 'url', MagicMock(return_value='http://example.com/paso_image.jpg')):
-             with patch.object(self.paso.audio, 'url', MagicMock(return_value='http://example.com/paso_audio.mp3')):
+        with patch.object(self.paso.image, 'url', MagicMock(return_value='http://example.com/paso_image.jpg'), create=True):
+             with patch.object(self.paso.audio, 'url', MagicMock(return_value='http://example.com/paso_audio.mp3'), create=True):
                 paso_dict = self.paso.as_dict()
                 self.assertEqual(paso_dict['title'], 'Test Paso Title')
                 self.assertEqual(paso_dict['step_number'], 1)
@@ -97,18 +98,22 @@ class CeleryTaskTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email='taskuser@example.com', password='password')
-        cls.tour_es = Tour.objects.create(user=cls.user, titulo='Celery Spanish Tour', idioma='es', audio_name_for_test='spanish_audio.mp3')
+        # Correctly simulate an audio file being associated with the tour for tasks
+        cls.tour_es = Tour.objects.create(user=cls.user, titulo='Celery Spanish Tour', idioma='es')
+        cls.tour_es.audio.name = 'test_audio/spanish_audio.mp3' # Simulate S3 path
+        cls.tour_es.save()
+
         cls.tour_en = Tour.objects.create(user=cls.user, titulo='Celery English Tour', idioma='en', original=str(cls.tour_es.id))
         TourRelation.objects.create(tour_es=cls.tour_es, tour_en=cls.tour_en)
-        # Simulate file paths for audio fields if tasks expect .name attribute
-        cls.tour_es.audio.name = 'tour_audio_es.mp3'
-        cls.tour_es.save()
-        Paso.objects.create(tour=cls.tour_es, step_number=1, audio_name_for_test='paso1_audio_es.mp3', audio='paso1_es.mp3')
+
+        cls.paso_es = Paso.objects.create(tour=cls.tour_es, step_number=1, tittle="Paso ES 1")
+        cls.paso_es.audio.name = 'test_audio/paso1_es.mp3' # Simulate S3 path
+        cls.paso_es.save()
 
 
     @patch('LTtApp.tasks.boto3.client')
     @patch('LTtApp.tasks.wait_for_transcription_job_completion')
-    def test_process_transcription_task_success(self, mock_wait, mock_boto_client):
+    def test_process_transcription_task(self, mock_wait, mock_boto_client):
         mock_s3 = MagicMock()
         mock_transcribe = MagicMock()
         mock_boto_client.side_effect = lambda service_name, region_name=None: mock_transcribe if service_name == 'transcribe' else mock_s3
@@ -118,15 +123,14 @@ class CeleryTaskTests(TestCase):
 
         self.assertTrue(mock_transcribe.start_transcription_job.called)
         # Check call for main tour audio
-        main_audio_call_args = mock_transcribe.start_transcription_job.call_args_list[0][1] # kwargs of first call
-        self.assertTrue(main_audio_call_args['TranscriptionJobName'].startswith(f"tour_audio_es_{self.user.id}_{self.tour_es.id}_main"))
+        main_audio_call_args = mock_transcribe.start_transcription_job.call_args_list[0][1]
+        self.assertTrue(main_audio_call_args['TranscriptionJobName'].startswith(f"spanish_audio_{self.user.id}_{self.tour_es.id}_main"))
         # Check call for paso audio
-        paso_audio_call_args = mock_transcribe.start_transcription_job.call_args_list[1][1] # kwargs of second call
+        paso_audio_call_args = mock_transcribe.start_transcription_job.call_args_list[1][1]
         self.assertTrue(paso_audio_call_args['TranscriptionJobName'].startswith(f"paso1_es_{self.user.id}_{self.tour_es.id}_step_1"))
 
-
     @patch('LTtApp.tasks.boto3.client')
-    def test_process_translation_task_success(self, mock_boto_client):
+    def test_process_translation_task(self, mock_boto_client):
         mock_s3 = MagicMock()
         mock_translate = MagicMock()
         mock_boto_client.side_effect = lambda service_name, region_name=None: mock_translate if service_name == 'translate' else mock_s3
@@ -142,28 +146,26 @@ class CeleryTaskTests(TestCase):
 
 
     @patch('LTtApp.tasks.boto3.client')
-    def test_process_synthesis_task_success(self, mock_boto_client):
+    def test_process_synthesis_task(self, mock_boto_client):
         mock_s3 = MagicMock()
         mock_polly = MagicMock()
         mock_boto_client.side_effect = lambda service_name, region_name=None: mock_polly if service_name == 'polly' else mock_s3
 
-        mock_s3.get_object.return_value = {'Body': MagicMock(read=MagicMock(return_value=b"Hello world"))}
+        mock_s3.get_object.return_value = {'Body': MagicMock(read=MagicMock(return_value=b"Hello world ######################################################################## Hello step"))}
         mock_polly.synthesize_speech.return_value = {'AudioStream': MagicMock(read=MagicMock(return_value=b"audio_data"))}
 
-        # Ensure target tour (English tour) has steps if the task expects them
         Paso.objects.create(tour=self.tour_en, step_number=1, tittle="English Step 1")
-
 
         process_synthesis_task(self.tour_en.id)
 
-        mock_s3.get_object.assert_called_once() # For fetching translated text
+        mock_s3.get_object.assert_called_once()
         self.assertTrue(mock_polly.synthesize_speech.called)
-        # Example: Check if main audio for tour_en was synthesized
-        self.assertTrue(any(call_args[1]['Text'] == 'Hello world' for call_args in mock_polly.synthesize_speech.call_args_list))
-        # Check if S3 put_object was called for the main audio
-        # This requires inspecting call_args_list for s3_client.put_object
-        # Note: This is a simplified check. A real test would verify paths and model updates more precisely.
+        # Check main tour audio synthesis
+        self.assertEqual(mock_polly.synthesize_speech.call_args_list[0][1]['Text'], 'Hello world')
+        # Check step audio synthesis
+        self.assertEqual(mock_polly.synthesize_speech.call_args_list[1][1]['Text'], 'Hello step')
         self.assertTrue(mock_s3.put_object.called)
+        self.assertEqual(mock_s3.put_object.call_count, 2) # Main audio + 1 step
 
 
 class APIViewTests(APITestCase):
@@ -175,10 +177,14 @@ class APIViewTests(APITestCase):
         TourRelation.objects.create(tour_es=cls.tour_es, tour_en=cls.tour_en)
         Paso.objects.create(tour=cls.tour_es, step_number=1, tittle="Paso Uno")
 
+    def setUp(self): # Renamed from setUpTestData as client needs to be fresh for each test
+        self.client = APIClient()
+
 
     @patch('LTtApp.views.process_transcription_task.delay')
     def test_start_transcription_job_view_authenticated(self, mock_task_delay):
         self.client.force_authenticate(user=self.user)
+        # Assuming 'start_transcription_job' is the correct URL name from urls.py
         url = reverse('start_transcription_job_view', kwargs={'tour_id': self.tour_es.id})
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -188,7 +194,7 @@ class APIViewTests(APITestCase):
     def test_start_transcription_job_view_unauthenticated(self):
         url = reverse('start_transcription_job_view', kwargs={'tour_id': self.tour_es.id})
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED) # Corrected from 403
 
 
     def test_list_latest_tours_by_category_success(self):
@@ -208,11 +214,7 @@ class APIViewTests(APITestCase):
         url = reverse('crear_valoracion')
         data = {'tour_id': self.tour_es.id, 'puntuacion': 5, 'comentario': 'Great!'}
         response = self.client.post(url, data)
-        # Default permission is AllowAny for this view as per current views.py, so this might pass
-        # If it were IsAuthenticated, it would be 401.
-        # Let's assume it's AllowAny for now, so it would be 201 or 400 if form invalid
-        self.assertIn(response.status_code, [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
-
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED) # AllowAny is set
 
     def test_crear_valoracion_authenticated(self):
         self.client.force_authenticate(user=self.user)
@@ -225,10 +227,93 @@ class APIViewTests(APITestCase):
     def test_crear_valoracion_missing_data(self):
         self.client.force_authenticate(user=self.user)
         url = reverse('crear_valoracion')
-        data = {'tour_id': self.tour_es.id, 'comentario': 'No rating'} # Missing puntuacion
+        data = {'tour_id': self.tour_es.id, 'comentario': 'No rating'}
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('error', response.data)
         self.assertEqual(response.data['error'], 'Faltan datos necesarios')
 
-    # ... (other tests as previously defined and new ones)
+
+class DonationAPITests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email='donor@example.com', password='password123')
+
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('create_checkout_session') # Assuming 'create_checkout_session' is the URL name
+
+    def test_create_donation_unauthenticated(self):
+        response = self.client.post(self.url, {'amount': 5000})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED) # Changed from 403 as per IsAuthenticated
+
+    @patch('stripe.checkout.Session.create')
+    def test_create_donation_success_authenticated(self, mock_stripe_session_create):
+        self.client.force_authenticate(user=self.user)
+        mock_stripe_session_create.return_value = MagicMock(id='cs_test_123')
+
+        data = {'amount': 5000, 'description': 'Test Donation'} # Amount in cents
+        response = self.client.post(self.url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED) # Changed from 200
+        self.assertEqual(response.data['id'], 'cs_test_123')
+
+        mock_stripe_session_create.assert_called_once()
+        called_args, called_kwargs = mock_stripe_session_create.call_args
+        self.assertEqual(called_kwargs['customer_email'], self.user.email)
+        self.assertEqual(called_kwargs['line_items'][0]['price_data']['unit_amount'], 5000)
+        self.assertEqual(called_kwargs['metadata']['user_provided_description'], 'Test Donation')
+        self.assertEqual(called_kwargs['metadata']['django_user_id'], str(self.user.id))
+        self.assertEqual(called_kwargs['line_items'][0]['price_data']['product_data']['name'], "Donation to Let's Tour Tec")
+
+    @patch('stripe.checkout.Session.create')
+    def test_create_donation_no_description(self, mock_stripe_session_create):
+        self.client.force_authenticate(user=self.user)
+        mock_stripe_session_create.return_value = MagicMock(id='cs_test_456')
+
+        data = {'amount': 3000} # Amount in cents
+        response = self.client.post(self.url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['id'], 'cs_test_456')
+
+        called_args, called_kwargs = mock_stripe_session_create.call_args
+        self.assertNotIn('user_provided_description', called_kwargs['metadata'])
+        self.assertEqual(called_kwargs['metadata']['django_user_id'], str(self.user.id))
+
+
+    def test_create_donation_invalid_amount(self):
+        self.client.force_authenticate(user=self.user)
+        invalid_amounts = [-100, 0, 'not-a-number', 10.50]
+        for amount in invalid_amounts:
+            data = {'amount': amount, 'description': 'Invalid amount test'}
+            response = self.client.post(self.url, data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, f"Failed for amount: {amount}")
+            self.assertIn('error', response.data)
+            self.assertEqual(response.data['error'], 'Amount must be a positive integer in cents.')
+
+    @patch('stripe.checkout.Session.create')
+    def test_create_donation_stripe_api_error(self, mock_stripe_session_create):
+        self.client.force_authenticate(user=self.user)
+        # Simulate a Stripe API error
+        mock_stripe_session_create.side_effect = stripe.error.StripeError("Stripe processing error")
+
+        data = {'amount': 5000, 'description': 'Stripe error test'}
+        response = self.client.post(self.url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('error', response.data)
+        self.assertTrue("Stripe processing error" in response.data['error'])
+
+    def test_create_donation_invalid_json(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.url, data="this is not json", content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Invalid JSON format.')
+
+    def test_create_donation_missing_amount(self):
+        self.client.force_authenticate(user=self.user)
+        data = {'description': 'Missing amount'}
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Amount must be a positive integer in cents.')
