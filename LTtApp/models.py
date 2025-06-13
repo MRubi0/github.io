@@ -57,7 +57,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             'The groups this user belongs to. A user will get all permissions '
             'granted to each of their groups.'
         ),
-        related_name="user_set",  
+        related_name="customuser_set", # Changed to avoid clash
         related_query_name="user" 
 )
     user_permissions = models.ManyToManyField(
@@ -65,7 +65,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('user permissions'),
         blank=True,
         help_text=_('Specific permissions for this user.'),
-        related_name="user_set",  
+        related_name="customuser_set", # Changed to avoid clash
         related_query_name="user" 
 )
     # class Meta:
@@ -106,9 +106,9 @@ class Tour(models.Model):
     duracion = models.PositiveIntegerField("Duración en minutos", null=True, blank=True)
     recorrido = models.FloatField(null=True, blank=True)
     original = models.TextField(null=True, blank=True)
-    idioma = models.CharField(max_length=2, default='es')
-    validado = models.BooleanField(default=False)
-    created_at = models.DateTimeField(default=timezone.now)
+    idioma = models.CharField(max_length=10, default='es', db_index=True) # Increased max_length and added db_index
+    validado = models.BooleanField(default=False, db_index=True) # Added db_index
+    created_at = models.DateTimeField(default=timezone.now, db_index=True) # Added db_index
     updated_at = models.DateTimeField(auto_now=True)
     TIPO_DE_TOUR_CHOICES = [
         ('nature', 'Naturaleza'),
