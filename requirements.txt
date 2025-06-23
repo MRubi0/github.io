@@ -28,5 +28,4 @@ folium==0.14.0
 django-cors-headers
 djangorestframework
 djangorestframework-simplejwt
-GDAL==3.4.1        # o pygdal==3.4.1.*
-
+GDAL
