@@ -609,7 +609,12 @@ def get_latest_tours(request):
                     'email': latest_tour.user.email,
                     'first_name': latest_tour.user.first_name, 
                     'last_name': latest_tour.user.last_name,
-                    'avatar': latest_tour.user.avatar.url,
+                    #'avatar': latest_tour.user.avatar.url,
+                    'avatar': (
+    latest_tour.user.avatar.url
+    if latest_tour.user.avatar and getattr(latest_tour.user.avatar, 'url', None)
+    else None               # o '' si prefieres string vacío
+),
                     'bio': latest_tour.user.bio               
                 }
             }
@@ -757,7 +762,11 @@ def get_nearest_tours_all(request):
             'first_name': tour['tour'].user.first_name, 
             'last_name': tour['tour'].user.last_name,
             #'avatar': tour['tour'].user.avatar.url,
-            'avatar': None,
+            'avatar': (
+    tour['tour'].user.avatar.url
+    if tour['tour'].user.avatar and getattr(tour['tour'].user.avatar, 'url', None)
+    else None               # o '' si prefieres string vacío
+),
             'bio': tour['tour'].user.bio,
         }
     } for tour in current_page_tours]
