@@ -756,6 +756,7 @@ def get_nearest_tours_all(request):
             'email': tour['tour'].user.email,
             'first_name': tour['tour'].user.first_name, 
             'last_name': tour['tour'].user.last_name,
+            #'avatar': tour['tour'].user.avatar.url,
             'avatar': None,
             'bio': tour['tour'].user.bio,
         }
