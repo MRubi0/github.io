@@ -26,7 +26,7 @@ urlpatterns = [
     path('register/', register_view,   name='register'),
 
     # ---------------------------------------------------------------- PÁGINAS / TEMPLATES
-    path('', include('LTtApp.urls')),                       # index, etc. (HTML)
+
     path('profile/',            views.profile,          name='profile'),
     path('profile/edit/',       views.edit_profile,     name='edit_profile'),
     path('profile/get/',        views.search_user_by_id),
