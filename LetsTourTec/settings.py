@@ -239,10 +239,12 @@ MEDIA_URL = 'https://%s.s3.amazonaws.com/media/' % AWS_STORAGE_BUCKET_NAME
 #Usename user-letstourtec-bucket
 #Console password letsTOUR**
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:4200", "https://localhost:4200", "https://letstourtecfrontend-de231b69a9c6.herokuapp.com", "https://www.letstourtec.com", "http://www.letstourtec.com", "https://letstourtec-testing-2ac790364c4e.herokuapp.com"
+    "https://letstourtec.app",
+    "https://www.letstourtec.app","http://localhost:4200", "https://localhost:4200", "https://letstourtecfrontend-de231b69a9c6.herokuapp.com", "https://www.letstourtec.com", "http://www.letstourtec.com", "https://letstourtec-testing-2ac790364c4e.herokuapp.com"
 ]
 CORS_ORIGIN_WHITELIST = [
-    "http://localhost:4200", "https://localhost:4200", "https://letstourtecfrontend-de231b69a9c6.herokuapp.com", "https://www.letstourtec.com", "http://www.letstourtec.com", "https://letstourtec-testing-2ac790364c4e.herokuapp.com"
+    "https://letstourtec.app",
+    "https://www.letstourtec.app","http://localhost:4200", "https://localhost:4200", "https://letstourtecfrontend-de231b69a9c6.herokuapp.com", "https://www.letstourtec.com", "http://www.letstourtec.com", "https://letstourtec-testing-2ac790364c4e.herokuapp.com"
 ]
 CSRF_COOKIE_NAME = 'csrftoken'
 SESSION_COOKIE_SAMESITE = None
