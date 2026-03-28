@@ -509,7 +509,7 @@ def get_nearest_tours(request):
                     'email': tour.user.email,
                     'first_name': tour.user.first_name,
                     'last_name': tour.user.last_name,
-                    'avatar': tour.user.avatar.url,
+                    'avatar': tour.user.avatar.url if tour.user.avatar else None,
                     'bio': tour.user.bio,
                 }
             })
@@ -546,7 +546,7 @@ def get_nearest_tours(request):
                     'email': tour.user.email,
                     'first_name': tour.user.first_name,
                     'last_name': tour.user.last_name,
-                    'avatar': tour.user.avatar.url,
+                    'avatar': tour.user.avatar.url if tour.user.avatar else None,
                     'bio': tour.user.bio,
                 }
             }
