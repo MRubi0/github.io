@@ -1,3 +1,6 @@
 venv/
 tree.txt
 tree_project.txt
+.env
+*.pyc
+__pycache__/

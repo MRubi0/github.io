@@ -149,13 +149,8 @@ class Tour(models.Model):
 
             # Construye el path de la imagen en S3
             key = f'tours/{self.id}/images/{self.imagen.name}'
-            # Aquí necesitas configurar boto3 con tus credenciales de AWS y especificar el bucket y key adecuados
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id='AKIAYTBLLQA7BS6GPBHU',
-                aws_secret_access_key='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',
-                region_name='eu-north-1'
-            )
+            # Las credenciales se leen automáticamente desde settings (que las lee del .env)
+            s3 = boto3.client('s3')
 
 
 

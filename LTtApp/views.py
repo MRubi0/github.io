@@ -55,34 +55,25 @@ from .models import (AudioFile, CustomUser, Encuesta, Guide, ImageFile,
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+ALLOWED_AUDIO_TYPES = {'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
+MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100 MB
+
+def validate_file(file, allowed_types, max_size):
+    if file.content_type not in allowed_types:
+        return f"Tipo de archivo no permitido: {file.content_type}"
+    if file.size > max_size:
+        return f"El archivo supera el tamaño máximo permitido ({max_size // (1024*1024)} MB)"
+    return None
+
 
 
 
 @csrf_exempt
 def create_checkout_session(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        amount = data.get('amount', 0)
-        try:
-            session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=[{
-                    'price_data': {
-                        'currency': 'eur',
-                        'product_data': {
-                            'name': 'Donación',
-                        },
-                        'unit_amount': amount,
-                    },
-                    'quantity': 1,
-                }],
-                mode='payment',
-                success_url='http://localhost:4200/success',
-                cancel_url='http://localhost:4200/cancel',
-            )
-            return JsonResponse({'id': session.id})
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=403)
+    # Las donaciones aún no están disponibles
+    return JsonResponse({'donations_unavailable': True}, status=503)
 
 
 
@@ -196,36 +187,22 @@ def get_user_tours(request):
 
 @csrf_exempt
 def login_view(request):
-    print("Hello, estamos en login_view")
     if request.method == 'POST':
-        print(f"Request body: {request.body}")
-        print(f"Request POST data: {request.POST}")
-        
-        email = request.POST.get('username')  # Si estás enviando el email en el campo 'username'
+        email = request.POST.get('username')
         password = request.POST.get('password')
 
-        print(f"Email: {email}, Password: {password}")
-        
-        # Buscar al usuario por su email
         try:
             user = CustomUser.objects.get(email=email)
-            print(f"Usuario encontrado: {user.username}")
-            
-            # Intentar autenticar usando el username del usuario
             user = authenticate(request, username=user.username, password=password)
 
             if user is not None:
-                print(f"Usuario autenticado: {user.username}")
                 login(request, user)
                 return JsonResponse({'success': True})
             else:
-                print("Fallo de autenticación")
                 return JsonResponse({'error': 'Invalid credentials'}, status=401)
         except CustomUser.DoesNotExist:
-            print(f"No existe un usuario con el email {email}")
             return JsonResponse({'error': 'Invalid credentials'}, status=401)
     else:
-        print("Método GET no soportado para login")
         return JsonResponse({'error': 'GET request not supported'}, status=405)
 
 
@@ -233,14 +210,7 @@ def login_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_tours(request):
-    print("llegamos aqui")
-    print(request)
-    error_message = None
     auth_header = request.META.get('HTTP_AUTHORIZATION')
-    if auth_header:
-        token = auth_header.split(' ')[1]
-    else:
-        print("No se encontró el header de autorización")
     
     if request.method == 'POST':
         if not request.user.is_authenticated:
@@ -249,7 +219,6 @@ def upload_tours(request):
 
 
         if form.is_valid():     
-            print("tour valido")
    
             tour_es = form.save(commit=False)
             tour_destino = request.POST['idioma_destino']
@@ -272,18 +241,21 @@ def upload_tours(request):
             next_id_en = get_next_id()
  
 
-            print('next_id ----> ', next_id_es)
 
             if 'imagen' in request.FILES:
                 image_file = request.FILES['imagen']
+                error = validate_file(image_file, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE)
+                if error:
+                    return Response({'error': error}, status=400)
                 timestamp = int(time.time() * 1000)
                 image_name = f"{str(next_id_es).zfill(5)}/{timestamp}.jpg"
-                
                 tour_es.imagen.save(image_name, image_file, save=False)
 
-            # Asegúrate de que 'audio' no cause el mismo problema
             if 'audio' in request.FILES:
                 audio_file = request.FILES['audio']
+                error = validate_file(audio_file, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE)
+                if error:
+                    return Response({'error': error}, status=400)
                 timestamp = int(time.time() * 1000)
                 audio_name = f"{str(next_id_es).zfill(5)}/aud_{timestamp}.mp3"
                 tour_es.audio.save(audio_name, audio_file, save=False)  
@@ -292,11 +264,7 @@ def upload_tours(request):
                 tour_es.tipo_de_tour = 'ocio'
             elif tour_es.tipo_de_tour == 'nature':
                 tour_es.tipo_de_tour = 'naturaleza'
-            print("voy a imprimir el tour")
-            print(tour_es)
-            print("FINAL")
 
-            print(f"suma_valoraciones antes de guardar: {tour_es.suma_valoraciones}")
             tour_es.save()
             
 
@@ -383,7 +351,6 @@ def upload_tours(request):
 
             return Response({'message': 'Gracias por tu esfuerzo, el tour sera validado por nuestro equipo'})
         else:
-            print("tour no valido")
             print(form.errors)  # Esto te ayudará a ver los errores en la consola
             return Response({'error': 'Formulario no válido', 'detalles': form.errors}, status=400)
 
@@ -432,7 +399,6 @@ def upload_encuesta(request):
 
         # Crear la instancia del modelo Encuesta sin guardarla aún
         encuesta = Encuesta()
-        print(encuesta)
 
         for clave_form, clave_modelo in mapeo_campos.items():
             valor = request.data.get(clave_form)
@@ -449,7 +415,6 @@ def register_view(request):
     if request.method == 'POST':
         # Cargamos el cuerpo de la solicitud (que es un JSON) en un diccionario de Python
         data = json.loads(request.body.decode('utf-8'))
-        print(data)
         # En lugar de usar request.POST, usamos el diccionario data que acabamos de crear
         form = CustomUserCreationForm(data)
         
@@ -461,7 +426,6 @@ def register_view(request):
             errors = {}
             for field, error_list in form.errors.as_data().items():
                 errors[field] = [str(error) for error in error_list]
-            print(errors)
             messages.error(request, "Ha ocurrido un error en el registro. Por favor, verifica tus datos e inténtalo de nuevo.")
 
             return JsonResponse({
@@ -510,13 +474,48 @@ def get_nearest_tours(request):
     latitud_usuario = float(request.GET.get('latitude', None))
     longitud_usuario = float(request.GET.get('longitude', None))
     idioma = request.GET.get('language', None)
+    tipo = request.GET.get('tipo', None)
+
     if latitud_usuario is None or longitud_usuario is None:
         return JsonResponse({"error": "Faltan parámetros: latitude y/o longitude"}, status=400)
-    
+
     if idioma is None:
         return JsonResponse({"error": "Falta el parámetro: language"}, status=400)
 
-    # Aquí iría la lógica para buscar los tours más cercanos
+    VALID_TYPES = {'cultural', 'naturaleza', 'ocio'}
+
+    # Cuando se pide un tipo concreto: devolver TODOS los tours de ese tipo ordenados por distancia
+    if tipo and tipo in VALID_TYPES:
+        tours = Tour.objects.filter(idioma=idioma, tipo_de_tour=tipo)
+        tours_with_distances = []
+        for tour in tours:
+            distance = haversine(latitud_usuario, longitud_usuario, tour.latitude, tour.longitude)
+            tours_with_distances.append({'tour': tour, 'distance': distance})
+        sorted_tours = sorted(tours_with_distances, key=lambda x: x['distance'])
+        result = []
+        for item in sorted_tours:
+            tour = item['tour']
+            result.append({
+                'id': tour.id,
+                'titulo': tour.titulo,
+                'descripcion': tour.descripcion,
+                'tipo_de_tour': tour.tipo_de_tour,
+                'imagen': {'url': tour.imagen.url},
+                'distance': item['distance'],
+                'duracion': tour.duracion,
+                'recorrido': tour.recorrido,
+                'user': {
+                    'id': tour.user.id,
+                    'email': tour.user.email,
+                    'first_name': tour.user.first_name,
+                    'last_name': tour.user.last_name,
+                    'avatar': tour.user.avatar.url,
+                    'bio': tour.user.bio,
+                }
+            })
+        return JsonResponse(result, safe=False)
+
+    # Comportamiento original: el tour más cercano de cada categoría
     tours = Tour.objects.filter(idioma=idioma)
     tours_with_distances = []
     for tour in tours:
@@ -524,17 +523,13 @@ def get_nearest_tours(request):
         tours_with_distances.append({'tour': tour, 'distance': distance})
 
     tour_categories = ['cultural', 'naturaleza', 'ocio']
-    nearest_tours = {}
-
     result = []
 
     for category in tour_categories:
-        # Ordenar por distancia y filtrar por categoría
         filtered_tours = sorted(
             filter(lambda x: x['tour'].tipo_de_tour == category, tours_with_distances),
             key=lambda x: x['distance']
         )
-        # Tomar el primer tour de la lista, que es el más cercano
         if filtered_tours:
             tour = filtered_tours[0]['tour']
             tour_object = {
@@ -549,10 +544,10 @@ def get_nearest_tours(request):
                 'user': {
                     'id': tour.user.id,
                     'email': tour.user.email,
-                    'first_name': tour.user.first_name, 
+                    'first_name': tour.user.first_name,
                     'last_name': tour.user.last_name,
                     'avatar': tour.user.avatar.url,
-                    'bio': tour.user.bio,                   
+                    'bio': tour.user.bio,
                 }
             }
             result.append(tour_object)
@@ -564,14 +559,6 @@ def tour_detail(request, tour_id):
     # Obtener el tour
     tour = get_object_or_404(Tour, pk=tour_id)
 
-    # Imprimir latitud y longitud
-    print("Tour Lat: ", tour.latitude)
-    print("Tour Lng: ", tour.longitude)
-    
-    if tour.imagen:
-        print("Image URL: ", tour.imagen.url)
-    if tour.audio:
-        print("Audio URL: ", tour.audio.url)
     context = {
         'tour': tour, 
         'user': request.user,
@@ -582,8 +569,38 @@ def tour_detail(request, tour_id):
 
 def get_latest_tours(request):
     idioma = request.GET.get('language', None)
+    tipo = request.GET.get('tipo', None)
     if not idioma:
         return JsonResponse({"error": "Falta el parámetro: language"}, status=400)
+
+    # Si se pasa ?tipo=cultural|naturaleza|ocio, devuelve todos los tours de ese tipo
+    if tipo:
+        VALID_TYPES = {'cultural', 'naturaleza', 'ocio'}
+        if tipo not in VALID_TYPES:
+            return JsonResponse({"error": "Tipo de tour no válido"}, status=400)
+        tours_qs = Tour.objects.filter(tipo_de_tour=tipo, idioma=idioma).order_by('-created_at')[:12]
+        result = []
+        for tour in tours_qs:
+            result.append({
+                'id': tour.id,
+                'titulo': tour.titulo,
+                'descripcion': tour.descripcion,
+                'tipo_de_tour': tour.tipo_de_tour,
+                'imagen': {'url': tour.imagen.url},
+                'recorrido': tour.recorrido,
+                'duracion': tour.duracion,
+                'distance': 0,
+                'user': {
+                    'id': tour.user.id,
+                    'email': tour.user.email,
+                    'first_name': tour.user.first_name,
+                    'last_name': tour.user.last_name,
+                    'avatar': tour.user.avatar.url if tour.user.avatar and getattr(tour.user.avatar, 'url', None) else None,
+                    'bio': tour.user.bio,
+                }
+            })
+        return JsonResponse(result, safe=False)
+
     tour_types = ['cultural', 'naturaleza','ocio']
 
     # Consulta el último tour de cada tipo
@@ -798,8 +815,6 @@ def custom_tours_page(request):
 
 def directions(request, tour_id):
     tour = Tour.objects.get(pk=tour_id)
-    print(f"Latitud del tour: {tour.latitude}")
-    print(f"Longitud del tour: {tour.longitude}")
      # Obtiene el primer paso del tour
     try:
         first_step = tour.paso_set.order_by('id').first()
@@ -867,7 +882,6 @@ def get_tour_with_steps(request, tour_id, languaje):
         return Response({"error": "Tour no encontrado"}, status=status.HTTP_404_NOT_FOUND)
     
 def get_tour_data(tour_id):
-    print('init')
     tour_objects = Tour.objects.get(id=tour_id)  
     tour_data = []
     for tour in tour_objects:
@@ -902,26 +916,20 @@ def debug_tour(request, tour_id):
     tour = Tour.objects.get(id=tour_id)
     
     # imprimimos todos los atributos y valores del tour
-    print(vars(tour))
 
 
 def next_step(request, tour_id, step_id=None):
-    print(f"Handling next_step request for tour_id={tour_id}, step_id={step_id}")
 
     try:
         # Encuentra el tour por su ID
         tour = Tour.objects.get(pk=tour_id)
-        print(f"Found tour: {tour}")
         # Encuentra el paso actual
         current_step = Paso.objects.get(pk=step_id)
-        print(f"Found current step: {current_step}")
 
         try:
             next_step = Paso.objects.filter(tour_id=tour_id, id__gte=current_step.id).order_by('id').first()
 
-            print(f"Found next step: {next_step}")
         except Paso.DoesNotExist:
-            print(f"No more steps found for tour_id={tour_id}")
             return JsonResponse({'error': 'No more steps'}, status=404)
 
 
@@ -933,7 +941,6 @@ def next_step(request, tour_id, step_id=None):
                     'longitude': next_step.longitude
 
                 }
-                print(f"Returning response: {response}")  
                 return JsonResponse(response)
             else:
                 return JsonResponse({'message': 'End of tour'}, status=200)
@@ -942,10 +949,8 @@ def next_step(request, tour_id, step_id=None):
             return render(request, 'step.html', {'tour': tour, 'step': next_step})
 
     except Tour.DoesNotExist:
-        print(f"No tour found with tour_id={tour_id}")
         return JsonResponse({'error': 'Tour not found'}, status=404)
     except Paso.DoesNotExist:
-        print(f"No step found with step_id={step_id}")
         return JsonResponse({'error': 'Step not found'}, status=404)
 
 def step_detail(request, tour_id, step_id):
@@ -993,7 +998,6 @@ def get_tour_locations(request, tour_id):
 def create_tour_record(request):    
     tour_id = request.data.get('tour_id')
     if not tour_id:
-        print("Error: Falta el ID del tour")
         return JsonResponse({'error': 'Falta el ID del tour'}, status=400)
 
     # Verifica si el tour existe
@@ -1001,16 +1005,13 @@ def create_tour_record(request):
 
     # Verificar si ya existe un registro para este tour y usuario
     if TourRecord.objects.filter(user=request.user, tour=tour).exists():
-        print("El usuario ya ha registrado este tour.")
         return JsonResponse({'error': 'Este tour ya ha sido registrado por el usuario'}, status=400)
 
     try:
         tour_record = TourRecord(user=request.user, tour=tour)
         tour_record.save()
-        print("Tour registrado con éxito para el usuario:", request.user.username)
         return JsonResponse({'message': 'Tour registrado con éxito'})
     except Exception as e:
-        print("Error al registrar el tour:", str(e))
         return JsonResponse({'error': 'Error al registrar el tour'}, status=500)
 
 
@@ -1018,11 +1019,9 @@ def get_user_tour_records(request):
     if request.method == 'GET':
         user_id = request.GET.get('id')
         language = request.GET.get('language', 'es')
-        print(f'Received user_id: {user_id}, language: {language}')
         
         if user_id:
             tours = Tour.objects.filter(user_id=user_id)
-            print(f'Found tours for user {user_id}: {tours}')
             tours_data = []
             processed_tours = set()
 
@@ -1054,15 +1053,12 @@ def get_user_tour_records(request):
 
                 # Obtener todas las valoraciones del tour actual solo del usuario autenticado
                 valoraciones = Valoracion.objects.filter(tour_id=tour_to_use.id, user_id=user_id)
-                print(f'Valoraciones iniciales del tour {tour_to_use.id} para el usuario {user_id}: {valoraciones}')
                 
                 # Si hay una relación, agregar las valoraciones del tour relacionado solo del usuario autenticado
                 if other_tour:
                     valoraciones_otro = Valoracion.objects.filter(tour_id=other_tour.id, user_id=user_id)
                     valoraciones = valoraciones | valoraciones_otro
-                    print(f'Valoraciones relacionadas del tour {other_tour.id} para el usuario {user_id}: {valoraciones_otro}')
                 
-                print(f'Valoraciones finales del tour {tour_to_use.id} para el usuario {user_id}: {valoraciones}')
 
                 valoraciones_data = []
 
@@ -1135,10 +1131,8 @@ def get_routes(request):
             while attempts < len(api_keys):
                 try:
                     key = api_keys[key_index]
-                    print(f"Intentando con la clave {key}")
                     url = f'https://graphhopper.com/api/1/route?key={key}'
                     chunk = data[0]['points'][i:i+5]
-                    print(f"Puntos actuales: {chunk}")
                     response = requests.post(url, json={'points': chunk, "points_encoded": False, "profile": "foot"})
                     
                     if len(chunk)==1:
@@ -1147,16 +1141,9 @@ def get_routes(request):
                     if response.status_code == 200:
                         json_response = response.json()
                         consolidated_response.append(json_response)
-                        print("Respuesta exitosa.")
                         break  # Sale del loop de reintento y continúa con el siguiente chunk
-                    else:
-                        # Imprime información adicional para diagnosticar el fallo
-                        print(f"Fallo con clave {key}. Código de estado: {response.status_code}")
-                        print("Parte de la respuesta:", response.text[:150])  # Imprime los primeros 150 caracteres de la respuesta
-                    
-
-                except requests.exceptions.RequestException as e:
-                    print(f"Excepción al hacer la solicitud con clave {key}: {str(e)}")
+                except requests.exceptions.RequestException:
+                    pass
                 finally:
                     key_index = (key_index + 1) % len(api_keys)  # Siguiente clave
                     attempts += 1  # Incrementa el contador de intentos
@@ -1177,7 +1164,6 @@ def save_base64_as_file(base64_data, file_path):
             f.write(decoded_data)
         return True
     except Exception as e:
-        print(f"Error saving base64 data as file: {e}")
         return False
 
 def upload_file_to_s3(file_path, bucket_name, folder_path, file_name):
@@ -1187,14 +1173,12 @@ def upload_file_to_s3(file_path, bucket_name, folder_path, file_name):
             s3.put_object(Body=f, Bucket=bucket_name, Key=f'{folder_path}/{file_name}')
         return True
     except ClientError as e:
-        print(f"Error uploading file to S3: {e}")
         return False
     
 
 
-@csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])  # Cambia según tus requerimientos de autenticación
+@permission_classes([IsAuthenticated])
 def crear_valoracion(request):
     
     data = request.data
@@ -1279,7 +1263,6 @@ def media_valoracion_tour(request, tour_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def update_profile(request):
-    print(f"Usuario autenticado: {request.user.is_authenticated}")
     if request.method == 'POST':
         user = request.user  # Asume que ya has manejado la autenticación
 
@@ -1317,7 +1300,9 @@ def upload_profile_image(request):
         user = request.user  # Asegúrate de obtener el usuario correctamente, esto es solo un ejemplo
         file = request.FILES.get('avatar')
         if file:
-            # Aquí deberías guardar el archivo en el lugar deseado y actualizar la referencia en el usuario
+            error = validate_file(file, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE)
+            if error:
+                return JsonResponse({'error': error}, status=400)
             user.avatar.save(file.name, file)
             user.save()
             return JsonResponse({'message': 'Imagen cargada con éxito.'})
@@ -1327,6 +1312,8 @@ def upload_profile_image(request):
         return JsonResponse({'error': 'Método no permitido.'}, status=405)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def search_user_by_id(request):
     if request.method == 'GET':
         user_id = request.GET.get('id')
@@ -1353,9 +1340,8 @@ def search_user_by_id(request):
         
         except CustomUser.DoesNotExist:
             return JsonResponse({'error': 'Usuario no encontrado'}, status=404)
-        except Exception as e:
-            # Log general para cualquier otro tipo de error
-            print(e)
+        except Exception:
+            return JsonResponse({'error': 'Error interno'}, status=500)
 
     else:
         return JsonResponse({'error': 'Método no permitido'}, status=405)
@@ -1365,7 +1351,7 @@ def search_user_by_id(request):
 def translate_text(text, idioma_origen, tour_destino):
     url = "https://deep-translate1.p.rapidapi.com/language/translate/v2"
     headers = {
-        'X-RapidAPI-Key': "75c294e6a8msh19ef7b3ebb91873p16517ejsn5f6bff2b1abd",
+        'X-RapidAPI-Key': settings.RAPIDAPI_KEY,
         'X-RapidAPI-Host': "deep-translate1.p.rapidapi.com"
     }
     payload = {
@@ -1375,7 +1361,7 @@ def translate_text(text, idioma_origen, tour_destino):
     } 
     
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
         response_data = response.json()
         if response.status_code == 200:
             translated_text = response_data.get('data', {}).get('translations', {}).get('translatedText', '')
@@ -1383,7 +1369,6 @@ def translate_text(text, idioma_origen, tour_destino):
         else:
             return text
     except Exception as e:
-        print(f"Exception in translation: {str(e)}")
         return text
     
 @api_view(['PUT'])
@@ -1398,6 +1383,9 @@ def edit_tour(request, tour_id, size):
     if request.method == 'PUT':
         if not request.user.is_authenticated:
             return Response({'error': 'Usuario no autenticado'}, status=401)
+
+        if tour_source.user != request.user and not request.user.is_staff:
+            return Response({'error': 'No tienes permiso para editar este tour'}, status=403)
 
         form = TourForm(request.POST, request.FILES, instance=tour_source)
 
@@ -1530,12 +1518,8 @@ def delete_s3_file(file_name):
                       region_name=settings.AWS_S3_REGION_NAME )
     try:
         s3.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=file_name)
-    except NoCredentialsError:
-        print("No AWS credentials found")
-    except PartialCredentialsError:
-        print("Incomplete AWS credentials")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
+    except (NoCredentialsError, PartialCredentialsError, Exception):
+        pass
 
 @csrf_exempt
 @api_view(['POST'])
@@ -1668,10 +1652,6 @@ def start_transcription_job(request, tour_id = 117):
 
 
     tour_og = get_object_or_404(Tour, pk=tour_id)
-    print(f"Tour Object: {tour_og}")
-    print(f"User: {tour_og.user}")
-    print(f"Idioma: {tour_og.idioma}")
-    print(f"Audio: {tour_og.audio}")
 
     key = str(tour_og.audio)
 
@@ -1945,7 +1925,6 @@ def copy_tour_images_to_s3():
 
             # Crear la ruta del directorio del tour
             tour_dir = f"{base_path}/{str(tour.id).zfill(5)}"
-            print(f"Procesando tour ID: {tour.id} - Directorio: {tour_dir}")
 
 
             # Copiar la imagen del tour, si existe
@@ -1956,7 +1935,6 @@ def copy_tour_images_to_s3():
 
                 if tour.imagen.name != destination_key:
                     copy_source = {'Bucket': source_bucket, 'Key': source_key}
-                    print(f"Copiando imagen del tour: {source_key} a {destination_key}")
 
                     # Comprobar si el objeto existe antes de copiarlo
                     try:
@@ -1972,11 +1950,10 @@ def copy_tour_images_to_s3():
                         # Actualizar el path en la base de datos
                         tour.imagen.name = destination_key
                         tour.save()
-                        print(f"Path actualizado en la DB para tour ID: {tour.id} - Nuevo path: {tour.imagen.name}")
                     except s3.exceptions.NoSuchKey:
-                        print(f"El archivo {source_key} no existe en el bucket {source_bucket}.")
+                        pass
                     except Exception as e:
-                        print(f"Error al copiar {source_key} a {destination_key}: {e}")
+                        pass
             
             # Obtener todos los pasos asociados al tour
             pasos = Paso.objects.filter(tour=tour)
@@ -1984,7 +1961,6 @@ def copy_tour_images_to_s3():
             for paso in pasos:
                 # Crear la ruta del directorio del paso
                 paso_dir = f"{tour_dir}/{str(paso.step_number).zfill(5)}"
-                print(f"Procesando paso ID: {paso.id} - Directorio: {paso_dir}")
 
                 # Copiar la imagen del paso, si existe
                 if paso.image:
@@ -1994,7 +1970,6 @@ def copy_tour_images_to_s3():
 
                     if paso.image.name != destination_key:
                         copy_source = {'Bucket': source_bucket, 'Key': source_key}
-                        print(f"Copiando imagen del paso: {source_key} a {destination_key}")
 
                         # Comprobar si el objeto existe antes de copiarlo
                         try:
@@ -2010,14 +1985,12 @@ def copy_tour_images_to_s3():
                             # Actualizar el path en la base de datos
                             paso.image.name = destination_key
                             paso.save()
-                            print(f"Path actualizado en la DB para paso ID: {paso.id} - Nuevo path: {paso.image.name}")
                         except s3.exceptions.NoSuchKey:
-                            print(f"El archivo {source_key} no existe en el bucket {source_bucket}.")
+                            pass
                         except Exception as e:
-                            print(f"Error al copiar {source_key} a {destination_key}: {e}")
+                            pass
                 else:
-                    print("ya esta modificado")
-    print("llegamos")
+                    pass
 
     return "Imágenes copiadas y paths actualizados correctamente"
 
@@ -2045,7 +2018,6 @@ def copy_tour_audio_to_s3():
 
             # Crear la ruta del directorio del tour
             tour_dir = f"{base_path}/{str(tour.id).zfill(5)}"
-            print(f"Procesando tour ID: {tour.id} - Directorio: {tour_dir}")
 
             # Copiar el audio del tour, si existe
             if tour.audio:
@@ -2055,7 +2027,6 @@ def copy_tour_audio_to_s3():
 
                 if tour.audio.name != destination_key:
                     copy_source = {'Bucket': source_bucket, 'Key': source_key}
-                    print(f"Copiando audio del tour: {source_key} a {destination_key}")
 
                     # Comprobar si el objeto existe antes de copiarlo
                     try:
@@ -2071,11 +2042,10 @@ def copy_tour_audio_to_s3():
                         # Actualizar el path en la base de datos
                         tour.audio.name = destination_key
                         tour.save()
-                        print(f"Path actualizado en la DB para tour ID: {tour.id} - Nuevo path: {tour.audio.name}")
                     except s3.exceptions.NoSuchKey:
-                        print(f"El archivo {source_key} no existe en el bucket {source_bucket}.")
+                        pass
                     except Exception as e:
-                        print(f"Error al copiar {source_key} a {destination_key}: {e}")
+                        pass
 
             # Obtener todos los pasos asociados al tour
             pasos = Paso.objects.filter(tour=tour)
@@ -2083,7 +2053,6 @@ def copy_tour_audio_to_s3():
             for paso in pasos:
                 # Crear la ruta del directorio del paso
                 paso_dir = f"{tour_dir}/{str(paso.step_number).zfill(5)}"
-                print(f"Procesando paso ID: {paso.id} - Directorio: {paso_dir}")
 
                 # Copiar el audio del paso, si existe
                 if paso.audio:
@@ -2093,7 +2062,6 @@ def copy_tour_audio_to_s3():
 
                     if paso.audio.name != destination_key:
                         copy_source = {'Bucket': source_bucket, 'Key': source_key}
-                        print(f"Copiando audio del paso: {source_key} a {destination_key}")
 
                         # Comprobar si el objeto existe antes de copiarlo
                         try:
@@ -2109,14 +2077,12 @@ def copy_tour_audio_to_s3():
                             # Actualizar el path en la base de datos
                             paso.audio.name = destination_key
                             paso.save()
-                            print(f"Path actualizado en la DB para paso ID: {paso.id} - Nuevo path: {paso.audio.name}")
                         except s3.exceptions.NoSuchKey:
-                            print(f"El archivo {source_key} no existe en el bucket {source_bucket}.")
+                            pass
                         except Exception as e:
-                            print(f"Error al copiar {source_key} a {destination_key}: {e}")
+                            pass
                 else:
-                    print("ya esta modificado")
-    print("llegamos")
+                    pass
 
     return "Audios copiados y paths actualizados correctamente"
 
@@ -2144,7 +2110,10 @@ def update_validated_field(request, tour_id):
     if request.method == 'PUT':
         if not request.user.is_authenticated:
             return Response({'error': 'Usuario no autenticado'}, status=401)
-        
+
+        if not request.user.is_staff:
+            return Response({'error': 'Solo los administradores pueden validar tours'}, status=403)
+
         validado = request.data.get('validado', None)
         if validado is None:
             return Response({'error': 'El campo "validado" es requerido'}, status=400)
@@ -2228,7 +2197,6 @@ def start_keep_alive_timer():
     def insert_keep_alive():
         # Crear una nueva fila en la tabla KeepAlive
         KeepAlive.objects.create()
-        print("Keep-alive row inserted automatically.")
         # Reprogramar la función para que se ejecute nuevamente después de 24 horas
         Timer(86400, insert_keep_alive).start()  # 86400 segundos = 24 horas
     insert_keep_alive
