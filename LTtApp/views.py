@@ -1238,7 +1238,22 @@ def crear_valoracion(request):
 @permission_classes([AllowAny])
 def get_valoraciones_tour(request, tour_id):
     tour = get_object_or_404(Tour, pk=tour_id)
-    valoraciones = Valoracion.objects.filter(tour=tour, comentario__isnull=False).exclude(comentario='').order_by('-fecha')[:20]
+
+    # Recoger IDs de todos los tours relacionados (original + traducciones)
+    tour_ids = {tour.id}
+    rel_as_es = TourRelation.objects.filter(tour_es=tour).first()
+    rel_as_en = TourRelation.objects.filter(tour_en=tour).first()
+    if rel_as_es:
+        tour_ids.add(rel_as_es.tour_en.id)
+    if rel_as_en:
+        tour_ids.add(rel_as_en.tour_es.id)
+
+    valoraciones = (
+        Valoracion.objects
+        .filter(tour_id__in=tour_ids, comentario__isnull=False)
+        .exclude(comentario='')
+        .order_by('-fecha')[:20]
+    )
     data = [
         {
             'puntuacion': v.puntuacion,
