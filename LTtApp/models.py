@@ -318,6 +318,8 @@ class Valoracion(models.Model):
     tour = models.ForeignKey(Tour, on_delete=models.CASCADE, related_name='valoraciones')
     puntuacion = models.IntegerField()
     comentario = models.TextField(blank=True, null=True)
+    comentario_es = models.TextField(blank=True, null=True)
+    comentario_en = models.TextField(blank=True, null=True)
     fecha = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

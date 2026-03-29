@@ -1212,24 +1212,29 @@ def crear_valoracion(request):
 
 
     form = ValoracionForm(valoracion_data)
-    
+
     if form.is_valid():
         valoracion = form.save(commit=False)
         valoracion.tour = tour
 
-        # Asocia el usuario solo si está autenticado
         if request.user.is_authenticated:
             valoracion.user = request.user
-           
+
         try:
             valoracion.save()
-           
+            # Traducir el comentario a ambos idiomas si existe
+            if valoracion.comentario:
+                try:
+                    region = settings.AWS_S3_REGION_NAME
+                    valoracion.comentario_es = translate_text_aws(region, valoracion.comentario, 'auto', 'es')
+                    valoracion.comentario_en = translate_text_aws(region, valoracion.comentario, 'auto', 'en')
+                    valoracion.save(update_fields=['comentario_es', 'comentario_en'])
+                except Exception:
+                    pass  # Si falla la traducción, el comentario original sigue disponible
             return JsonResponse({'mensaje': 'Valoración creada correctamente'}, status=201)
         except ValidationError as e:
-         
             return JsonResponse({'error': str(e)}, status=400)
     else:
-        
         return JsonResponse({'error': 'Datos inválidos', 'detalles': form.errors}, status=400)
     
 
@@ -1238,14 +1243,12 @@ def crear_valoracion(request):
 @permission_classes([AllowAny])
 def get_valoraciones_tour(request, tour_id):
     tour = get_object_or_404(Tour, pk=tour_id)
+    lang = request.GET.get('lang', 'es')
 
-    # Misma lógica que media_valoracion_tour: usar campo 'original' como fuente de verdad
     if tour.original != 'original':
-        # Es una traducción: buscar el original y combinar ambos
         tour_original = get_object_or_404(Tour, pk=tour.original)
         tour_ids = [tour.id, tour_original.id]
     else:
-        # Es el original: buscar todas sus traducciones
         traducciones = Tour.objects.filter(original=str(tour.id)).values_list('id', flat=True)
         tour_ids = [tour.id] + list(traducciones)
 
@@ -1255,10 +1258,16 @@ def get_valoraciones_tour(request, tour_id):
         .exclude(comentario='')
         .order_by('-fecha')[:20]
     )
+
+    def get_comentario(v):
+        if lang == 'en':
+            return v.comentario_en or v.comentario
+        return v.comentario_es or v.comentario
+
     data = [
         {
             'puntuacion': v.puntuacion,
-            'comentario': v.comentario,
+            'comentario': get_comentario(v),
             'fecha': v.fecha.strftime('%Y-%m-%d'),
             'usuario': v.user.username if v.user else None
         }
