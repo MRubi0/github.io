@@ -172,10 +172,10 @@ def get_user_tours(request):
                 tour_data['user'] = {
                     'id': tour.user.id,
                     'email': tour.user.email,
-                    'first_name': tour.user.first_name, 
+                    'first_name': tour.user.first_name,
                     'last_name': tour.user.last_name,
-                    'avatar': tour.user.avatar.url,
-                    'bio': tour.user.bio,                   
+                    'avatar': tour.user.avatar.url if tour.user.avatar else None,
+                    'bio': tour.user.bio,
                 }
                 
                 tours_data.append(tour_data)
