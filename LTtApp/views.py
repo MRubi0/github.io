@@ -168,6 +168,8 @@ def get_user_tours(request):
                 if tour_data.get('audio'):
                     tour_data['audio'] = {'url': tour_data['audio']}
                     
+                tour_data['original'] = tour.original
+
                 # Agregar la información del usuario que creó el tour
                 tour_data['user'] = {
                     'id': tour.user.id,
