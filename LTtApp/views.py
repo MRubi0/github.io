@@ -1225,15 +1225,19 @@ def crear_valoracion(request):
             # Traducir el comentario a ambos idiomas si existe
             if valoracion.comentario:
                 try:
-                    idioma_tour = tour.idioma  # 'es' o 'en'
-                    otro_idioma = 'en' if idioma_tour == 'es' else 'es'
-                    # El comentario está en el idioma del tour; guardar original + traducción
+                    def _translation_str(result):
+                        # translate_text devuelve lista o string según la API
+                        if isinstance(result, list):
+                            return result[0] if result else ''
+                        return result or ''
+
+                    idioma_tour = tour.idioma
                     if idioma_tour == 'es':
                         valoracion.comentario_es = valoracion.comentario
-                        valoracion.comentario_en = translate_text(valoracion.comentario, 'es', 'en')
+                        valoracion.comentario_en = _translation_str(translate_text(valoracion.comentario, 'es', 'en'))
                     else:
                         valoracion.comentario_en = valoracion.comentario
-                        valoracion.comentario_es = translate_text(valoracion.comentario, 'en', 'es')
+                        valoracion.comentario_es = _translation_str(translate_text(valoracion.comentario, 'en', 'es'))
                     valoracion.save(update_fields=['comentario_es', 'comentario_en'])
                 except Exception:
                     pass
