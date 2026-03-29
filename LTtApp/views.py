@@ -1239,14 +1239,15 @@ def crear_valoracion(request):
 def get_valoraciones_tour(request, tour_id):
     tour = get_object_or_404(Tour, pk=tour_id)
 
-    # Recoger IDs de todos los tours relacionados (original + traducciones)
-    tour_ids = {tour.id}
-    rel_as_es = TourRelation.objects.filter(tour_es=tour).first()
-    rel_as_en = TourRelation.objects.filter(tour_en=tour).first()
-    if rel_as_es:
-        tour_ids.add(rel_as_es.tour_en.id)
-    if rel_as_en:
-        tour_ids.add(rel_as_en.tour_es.id)
+    # Misma lógica que media_valoracion_tour: usar campo 'original' como fuente de verdad
+    if tour.original != 'original':
+        # Es una traducción: buscar el original y combinar ambos
+        tour_original = get_object_or_404(Tour, pk=tour.original)
+        tour_ids = [tour.id, tour_original.id]
+    else:
+        # Es el original: buscar todas sus traducciones
+        traducciones = Tour.objects.filter(original=str(tour.id)).values_list('id', flat=True)
+        tour_ids = [tour.id] + list(traducciones)
 
     valoraciones = (
         Valoracion.objects
