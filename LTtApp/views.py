@@ -2238,6 +2238,132 @@ def update_validated_field(request, tour_id):
     else:
         return Response({'error': 'Método no permitido'}, status=405)
 
+# ================================================================
+# ADMIN ENDPOINTS
+# ================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_stats(request):
+    """Estadísticas básicas de la plataforma para el panel de admin."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    pending  = Tour.objects.filter(validado=False, original='original').count()
+    published = Tour.objects.filter(validado=True, original='original').count()
+    total_users = CustomUser.objects.count()
+    return Response({
+        'pending_tours': pending,
+        'published_tours': published,
+        'total_users': total_users,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_pending_tours(request):
+    """Lista de tours pendientes de validación (no validados)."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    lang = request.GET.get('language', 'es')
+    tours = Tour.objects.filter(validado=False, idioma=lang).order_by('-created_at')
+    result = []
+    for tour in tours:
+        pasos = Paso.objects.filter(tour=tour).count()
+        result.append({
+            'id': tour.id,
+            'titulo': tour.titulo,
+            'descripcion': tour.descripcion,
+            'tipo_de_tour': tour.tipo_de_tour,
+            'imagen': {'url': tour.imagen.url if tour.imagen else None},
+            'duracion': tour.duracion,
+            'recorrido': tour.recorrido,
+            'pasos_count': pasos,
+            'created_at': tour.created_at.strftime('%Y-%m-%d') if tour.created_at else None,
+            'user': {
+                'id': tour.user.id,
+                'email': tour.user.email,
+                'first_name': tour.user.first_name,
+                'last_name': tour.user.last_name,
+            },
+        })
+    return Response({'tours': result, 'count': len(result)})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_published_tours(request):
+    """Lista de tours ya publicados (validados), solo originales."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    lang = request.GET.get('language', 'es')
+    tours = Tour.objects.filter(validado=True, idioma=lang, original='original').order_by('-updated_at')
+    result = []
+    for tour in tours:
+        result.append({
+            'id': tour.id,
+            'titulo': tour.titulo,
+            'tipo_de_tour': tour.tipo_de_tour,
+            'imagen': {'url': tour.imagen.url if tour.imagen else None},
+            'created_at': tour.created_at.strftime('%Y-%m-%d') if tour.created_at else None,
+            'user': {
+                'email': tour.user.email,
+                'first_name': tour.user.first_name,
+                'last_name': tour.user.last_name,
+            },
+        })
+    return Response({'tours': result})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_delete_tour(request, tour_id):
+    """Elimina un tour y su traducción asociada."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    tour = get_object_or_404(Tour, id=tour_id)
+    # Eliminar también la traducción si existe
+    Tour.objects.filter(original=str(tour_id)).delete()
+    tour.delete()
+    return Response({'message': 'Tour eliminado correctamente'})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_users(request):
+    """Lista de usuarios registrados, ordenados del más reciente."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    users = CustomUser.objects.order_by('-date_joined')[:100]
+    result = []
+    for user in users:
+        result.append({
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_active': user.is_active,
+            'is_staff': user.is_staff,
+            'date_joined': user.date_joined.strftime('%Y-%m-%d') if user.date_joined else None,
+            'avatar': user.avatar.url if user.avatar else None,
+        })
+    return Response({'users': result})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def admin_toggle_user_active(request, user_id):
+    """Activa o desactiva una cuenta de usuario."""
+    if not request.user.is_staff:
+        return Response({'error': 'No autorizado'}, status=403)
+    if request.user.id == user_id:
+        return Response({'error': 'No puedes desactivar tu propia cuenta'}, status=400)
+    user = get_object_or_404(CustomUser, id=user_id)
+    user.is_active = not user.is_active
+    user.save()
+    estado = 'activado' if user.is_active else 'desactivado'
+    return Response({'message': f'Usuario {estado} correctamente', 'is_active': user.is_active})
+
+
 def start_keep_alive_timer():
     def insert_keep_alive():
         # Crear una nueva fila en la tabla KeepAlive

@@ -58,4 +58,12 @@ urlpatterns = [
 
     # ---------------------------------------------------------------- CHECKOUT
     path('create-checkout-session/',      views.create_checkout_session),
+
+    # ---------------------------------------------------------------- ADMIN
+    path('admin/stats/',                              views.admin_stats),
+    path('admin/pending_tours/',                      views.admin_pending_tours),
+    path('admin/published_tours/',                    views.admin_published_tours),
+    path('admin/tours/<int:tour_id>/delete/',         views.admin_delete_tour),
+    path('admin/users/',                              views.admin_users),
+    path('admin/users/<int:user_id>/toggle_active/',  views.admin_toggle_user_active),
 ]
