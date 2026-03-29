@@ -1264,7 +1264,7 @@ def get_valoraciones_tour(request, tour_id):
 
     valoraciones = (
         Valoracion.objects
-        .filter(tour_id__in=tour_ids, comentario__isnull=False)
+        .filter(tour_id__in=tour_ids, comentario__isnull=False, puntuacion__gt=0)
         .exclude(comentario='')
         .order_by('-fecha')[:20]
     )
