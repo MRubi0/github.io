@@ -1244,7 +1244,7 @@ def get_valoraciones_tour(request, tour_id):
             'puntuacion': v.puntuacion,
             'comentario': v.comentario,
             'fecha': v.fecha.strftime('%Y-%m-%d'),
-            'usuario': v.user.username if v.user else 'Anónimo'
+            'usuario': v.user.username if v.user else None
         }
         for v in valoraciones
     ]
