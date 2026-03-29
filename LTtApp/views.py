@@ -1225,12 +1225,18 @@ def crear_valoracion(request):
             # Traducir el comentario a ambos idiomas si existe
             if valoracion.comentario:
                 try:
-                    region = settings.AWS_S3_REGION_NAME
-                    valoracion.comentario_es = translate_text_aws(region, valoracion.comentario, 'auto', 'es')
-                    valoracion.comentario_en = translate_text_aws(region, valoracion.comentario, 'auto', 'en')
+                    idioma_tour = tour.idioma  # 'es' o 'en'
+                    otro_idioma = 'en' if idioma_tour == 'es' else 'es'
+                    # El comentario está en el idioma del tour; guardar original + traducción
+                    if idioma_tour == 'es':
+                        valoracion.comentario_es = valoracion.comentario
+                        valoracion.comentario_en = translate_text(valoracion.comentario, 'es', 'en')
+                    else:
+                        valoracion.comentario_en = valoracion.comentario
+                        valoracion.comentario_es = translate_text(valoracion.comentario, 'en', 'es')
                     valoracion.save(update_fields=['comentario_es', 'comentario_en'])
                 except Exception:
-                    pass  # Si falla la traducción, el comentario original sigue disponible
+                    pass
             return JsonResponse({'mensaje': 'Valoración creada correctamente'}, status=201)
         except ValidationError as e:
             return JsonResponse({'error': str(e)}, status=400)
