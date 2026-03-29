@@ -281,70 +281,60 @@ def upload_tours(request):
             tour_en.recorrido=tour_es.recorrido
             tour_en.duracion=tour_es.duracion
             tour_en.validado = False
-            tour_en.descripcion = translate_text(tour_es.descripcion, tour_es.idioma, tour_destino)
-            tour_en.titulo = translate_text(tour_es.titulo, tour_es.idioma, tour_destino)         
-            tour_en.suma_valoraciones = 0 
+            tour_en.idioma = tour_destino
+            tour_en.descripcion = _translation_str(translate_text(tour_es.descripcion, tour_es.idioma, tour_destino))
+            tour_en.titulo = _translation_str(translate_text(tour_es.titulo, tour_es.idioma, tour_destino))
+            tour_en.suma_valoraciones = 0
             tour_en.total_valoraciones = 0
             tour_en.save()
             
 
             for i in range(100):
-                extra_audio_key = f'extra_step_audio_{i}'
-
-                if extra_audio_key in request.FILES:
-                    extra_audio = request.FILES[extra_audio_key]                    
-                    extra_description = None
-                    extra_image = None
-                    extra_latitude = None
-                    extra_longitude = None
-                    extra_tittle = None
-           
-                    extra_description_key = f'description_{i}'
-                    if extra_description_key in request.POST:
-                        extra_description = request.POST.get(extra_description_key, '')
-
-                    extra_tittle_key = f'tittle_{i}'  
-                    if extra_tittle_key in request.POST:
-                        extra_tittle = request.POST.get(extra_tittle_key, '')
-
-                    paso_es = Paso(tour=tour_es, description=extra_description, tittle=extra_tittle)
-                    paso_en = Paso(tour=tour_en, description=extra_description, tittle=extra_tittle)
-
-                    if request.FILES[f'extra_step_audio_{i}']:          
-                        extra_audio_file = request.FILES[f'extra_step_audio_{i}']                        
-                        timestamp = int(time.time() * 1000)
-                        extra_audio_name = f"Tour_audio/{str(next_id_es).zfill(5)}/{str(i+1).zfill(5)}//{timestamp}.mp3"
-                        paso_en.audio.save(extra_audio_name, extra_audio_file)
-                        paso_es.audio.save(extra_audio_name, extra_audio_file)
-
-                    extra_latitude_key = f'extra_step_latitude_{i}'
-                    if extra_latitude_key in request.POST and request.POST[extra_latitude_key]:
-                        extra_latitude = float(request.POST[extra_latitude_key])
-
-                    extra_longitude_key = f'extra_step_longitude_{i}'
-                    if extra_longitude_key in request.POST and request.POST[extra_longitude_key]:
-                        extra_longitude = float(request.POST[extra_longitude_key])
-
-                    if extra_latitude:
-                        paso_es.latitude = extra_latitude
-                        paso_en.latitude = extra_latitude
-                    if extra_longitude:
-                        paso_es.longitude = extra_longitude
-                        paso_en.longitude = extra_longitude                             
-
-                    extra_image_key = f'extra_step_image_{i}'
-        
-                    if extra_image_key in request.FILES:
-                       extra_image_file = request.FILES[f'extra_step_image_{i}']
-                       timestamp = int(time.time() * 1000)
-                       extra_image_name = f"Tour_imagen/{str(next_id_es).zfill(5)}/{str(i+1).zfill(5)}/extra_image_{next_id_es}/{timestamp}.jpg"
-                       paso_es.image.save(extra_image_name, extra_image_file, save=False)  
-                       paso_en.image = paso_es.image                 
-                       paso_es.save()
-                    paso_en.save()
-                 
-                else:
+                has_data = (
+                    f'tittle_{i}' in request.POST or
+                    f'description_{i}' in request.POST or
+                    f'extra_step_audio_{i}' in request.FILES or
+                    f'extra_step_image_{i}' in request.FILES or
+                    f'extra_step_latitude_{i}' in request.POST or
+                    f'extra_step_longitude_{i}' in request.POST
+                )
+                if not has_data:
                     break
+
+                extra_description = request.POST.get(f'description_{i}', '')
+                extra_tittle = request.POST.get(f'tittle_{i}', '')
+
+                paso_es = Paso(tour=tour_es, description=extra_description, tittle=extra_tittle)
+                paso_en = Paso(tour=tour_en, description=extra_description, tittle=extra_tittle)
+
+                if f'extra_step_audio_{i}' in request.FILES:
+                    extra_audio_file = request.FILES[f'extra_step_audio_{i}']
+                    timestamp = int(time.time() * 1000)
+                    extra_audio_name = f"Tour_audio/{str(next_id_es).zfill(5)}/{str(i+1).zfill(5)}/{timestamp}.mp3"
+                    paso_es.audio.save(extra_audio_name, extra_audio_file, save=False)
+                    paso_en.audio = paso_es.audio
+
+                extra_latitude_key = f'extra_step_latitude_{i}'
+                if extra_latitude_key in request.POST and request.POST[extra_latitude_key]:
+                    lat = float(request.POST[extra_latitude_key])
+                    paso_es.latitude = lat
+                    paso_en.latitude = lat
+
+                extra_longitude_key = f'extra_step_longitude_{i}'
+                if extra_longitude_key in request.POST and request.POST[extra_longitude_key]:
+                    lon = float(request.POST[extra_longitude_key])
+                    paso_es.longitude = lon
+                    paso_en.longitude = lon
+
+                if f'extra_step_image_{i}' in request.FILES:
+                    extra_image_file = request.FILES[f'extra_step_image_{i}']
+                    timestamp = int(time.time() * 1000)
+                    extra_image_name = f"Tour_imagen/{str(next_id_es).zfill(5)}/{str(i+1).zfill(5)}/{timestamp}.jpg"
+                    paso_es.image.save(extra_image_name, extra_image_file, save=False)
+                    paso_en.image = paso_es.image
+
+                paso_es.save()
+                paso_en.save()
 
 
             # Crear la relación entre los tours
@@ -1227,12 +1217,6 @@ def crear_valoracion(request):
             # Traducir el comentario a ambos idiomas si existe
             if valoracion.comentario:
                 try:
-                    def _translation_str(result):
-                        # translate_text devuelve lista o string según la API
-                        if isinstance(result, list):
-                            return result[0] if result else ''
-                        return result or ''
-
                     idioma_tour = tour.idioma
                     if idioma_tour == 'es':
                         valoracion.comentario_es = valoracion.comentario
@@ -1400,6 +1384,13 @@ def search_user_by_id(request):
     else:
         return JsonResponse({'error': 'Método no permitido'}, status=405)
 
+
+
+def _translation_str(result):
+    """translate_text (deep-translate1) puede devolver lista o string."""
+    if isinstance(result, list):
+        return result[0] if result else ''
+    return result or ''
 
 
 def translate_text(text, idioma_origen, tour_destino):
