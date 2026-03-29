@@ -1178,7 +1178,7 @@ def upload_file_to_s3(file_path, bucket_name, folder_path, file_name):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def crear_valoracion(request):
     
     data = request.data
@@ -1232,6 +1232,23 @@ def crear_valoracion(request):
         
         return JsonResponse({'error': 'Datos inválidos', 'detalles': form.errors}, status=400)
     
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_valoraciones_tour(request, tour_id):
+    tour = get_object_or_404(Tour, pk=tour_id)
+    valoraciones = Valoracion.objects.filter(tour=tour, comentario__isnull=False).exclude(comentario='').order_by('-fecha')[:20]
+    data = [
+        {
+            'puntuacion': v.puntuacion,
+            'comentario': v.comentario,
+            'fecha': v.fecha.strftime('%Y-%m-%d'),
+            'usuario': v.user.username if v.user else 'Anónimo'
+        }
+        for v in valoraciones
+    ]
+    return JsonResponse({'valoraciones': data})
 
 
 def media_valoracion_tour(request, tour_id):
