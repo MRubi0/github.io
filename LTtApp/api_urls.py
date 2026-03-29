@@ -43,6 +43,7 @@ urlpatterns = [
     path('crear_valoracion',              views.crear_valoracion),
     path('encuesta/',                     views.upload_encuesta),
     path('tour/<int:tour_id>/media-valoracion/', views.media_valoracion_tour),
+    path('tour/<int:tour_id>/valoraciones/', views.get_valoraciones_tour),
 
     # ---------------------------------------------------------------- RUTAS & MAPAS
     path('get_routes',                    views.get_routes),
