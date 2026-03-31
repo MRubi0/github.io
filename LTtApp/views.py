@@ -1013,11 +1013,13 @@ def get_user_tour_records(request):
         language = request.GET.get('language', 'es')
         
         if user_id:
-            tours = Tour.objects.filter(user_id=user_id)
+            # Obtener los registros de tours completados por el usuario (no los creados por él)
+            tour_records = TourRecord.objects.filter(user_id=user_id).select_related('tour', 'tour__user')
             tours_data = []
             processed_tours = set()
 
-            for tour in tours:
+            for record in tour_records:
+                tour = record.tour
                 if tour.id in processed_tours:
                     continue
                 
@@ -1073,6 +1075,7 @@ def get_user_tour_records(request):
                     "tipo_de_tour": tour_to_use.tipo_de_tour,
                     "recorrido": tour_to_use.recorrido,
                     "duracion": tour_to_use.duracion,
+                    "completed_at": record.date.strftime("%Y-%m-%d %H:%M:%S"),
                     "user": {
                         'id': tour_to_use.user.id,
                         'email': tour_to_use.user.email,
