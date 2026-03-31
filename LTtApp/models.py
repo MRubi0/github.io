@@ -9,6 +9,8 @@ import requests
 import boto3
 import os
 import time
+import uuid
+from datetime import timedelta
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 
@@ -38,6 +40,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
+    email_verified = models.BooleanField(default=True)  # True para usuarios existentes, False para nuevos
 
     objects = CustomUserManager()
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
@@ -330,3 +333,15 @@ class KeepAlive(models.Model):
 
     def __str__(self):
         return f"KeepAlive row at {self.updated_at}"
+
+
+class EmailVerificationToken(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='email_token')
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(hours=48)
+
+    def __str__(self):
+        return f"Token for {self.user.email}"

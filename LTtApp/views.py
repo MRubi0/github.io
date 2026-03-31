@@ -51,7 +51,7 @@ from .forms import (AudioFileForm, CustomUserCreationForm, EditProfileForm,
                     EncuestaForm, GuideForm, ImageFileForm, LocationForm,
                     TourForm, ValoracionForm)
 from .models import (AudioFile, CustomUser, Encuesta, Guide, ImageFile,
-                     Location, Paso, Tour, TourRecord, TourRelation, Valoracion, PasoSerializer, TourSerializer, KeepAlive)
+                     Location, Paso, Tour, TourRecord, TourRelation, Valoracion, PasoSerializer, TourSerializer, KeepAlive, EmailVerificationToken)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -405,30 +405,82 @@ def upload_encuesta(request):
 @csrf_exempt
 def register_view(request):
     if request.method == 'POST':
-        # Cargamos el cuerpo de la solicitud (que es un JSON) en un diccionario de Python
         data = json.loads(request.body.decode('utf-8'))
-        # En lugar de usar request.POST, usamos el diccionario data que acabamos de crear
         form = CustomUserCreationForm(data)
-        
+
         if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return JsonResponse({"success": True, "message": "Registration successful!"})
+            user = form.save(commit=False)
+            user.email_verified = False
+            user.save()
+
+            # Crear token y enviar email de verificación
+            token_obj = EmailVerificationToken.objects.create(user=user)
+            frontend_url = settings.FRONTEND_URL
+            verify_url = f"{frontend_url}/verify-email/{token_obj.token}"
+
+            lang = data.get('lang', 'es')
+            if lang == 'en':
+                subject = "Confirm your email – Let's Tour Tec"
+                body_html = f"""
+                <p>Hi {user.first_name},</p>
+                <p>Thank you for joining Let's Tour Tec! Please confirm your email by clicking the button below:</p>
+                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirm email</a></p>
+                <p>The link expires in 48 hours. If you didn't register, you can ignore this email.</p>
+                <p>— The Let's Tour Tec team</p>
+                """
+                body_text = f"Hi {user.first_name},\n\nConfirm your email: {verify_url}\n\nExpires in 48 hours."
+            else:
+                subject = "Confirma tu email – Let's Tour Tec"
+                body_html = f"""
+                <p>Hola {user.first_name},</p>
+                <p>¡Gracias por unirte a Let's Tour Tec! Confirma tu dirección de email haciendo clic en el botón:</p>
+                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirmar email</a></p>
+                <p>El enlace caduca en 48 horas. Si no te has registrado, ignora este mensaje.</p>
+                <p>— El equipo de Let's Tour Tec</p>
+                """
+                body_text = f"Hola {user.first_name},\n\nConfirma tu email: {verify_url}\n\nCaduca en 48 horas."
+
+            from django.core.mail import EmailMultiAlternatives
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=body_text,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email],
+            )
+            msg.attach_alternative(body_html, "text/html")
+            msg.send(fail_silently=True)
+
+            return JsonResponse({"success": True, "message": "Registration successful! Please check your email."})
         else:
             errors = {}
             for field, error_list in form.errors.as_data().items():
                 errors[field] = [str(error) for error in error_list]
-            messages.error(request, "Ha ocurrido un error en el registro. Por favor, verifica tus datos e inténtalo de nuevo.")
-
             return JsonResponse({
                 "success": False,
                 "message": "Error in registration. Please verify your data and try again.",
                 "errors": errors
-            })            
-    else:
-        form = CustomUserCreationForm()
+            })
 
     return JsonResponse({"success": False, "message": "Invalid request method."})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def verify_email(request, token):
+    try:
+        token_obj = EmailVerificationToken.objects.get(token=token)
+    except EmailVerificationToken.DoesNotExist:
+        return Response({'success': False, 'message': 'Token inválido o ya utilizado.'}, status=400)
+
+    if token_obj.is_expired():
+        token_obj.delete()
+        return Response({'success': False, 'message': 'El enlace ha expirado. Regístrate de nuevo.'}, status=400)
+
+    user = token_obj.user
+    user.email_verified = True
+    user.save()
+    token_obj.delete()
+    return Response({'success': True, 'message': 'Email verificado correctamente. Ya puedes iniciar sesión.'})
+
 
 def registration_success(request):
     return render(request, 'registration/success.html')

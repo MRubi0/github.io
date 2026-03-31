@@ -9,6 +9,7 @@ urlpatterns = [
     path('token/',            CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/',    TokenRefreshView.as_view(),    name='token_refresh'),
     path('test_auth/',        views.test_auth,               name='test_auth'),
+    path('verify-email/<uuid:token>/', views.verify_email,  name='verify_email'),
 
     # ---------------------------------------------------------------- USER
     path('register/',                     views.register_view),           # POST JSON
