@@ -2367,6 +2367,20 @@ def admin_toggle_user_active(request, user_id):
     return Response({'message': f'Usuario {estado} correctamente', 'is_active': user.is_active})
 
 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['is_staff'] = user.is_staff
+        return token
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
 def start_keep_alive_timer():
     def insert_keep_alive():
         # Crear una nueva fila en la tabla KeepAlive
