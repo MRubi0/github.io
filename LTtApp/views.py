@@ -420,25 +420,41 @@ def register_view(request):
 
             lang = data.get('lang', 'es')
             if lang == 'en':
-                subject = "Confirm your email – Let's Tour Tec"
+                subject = "Welcome to Let's Tour Tec – please confirm your email"
                 body_html = f"""
                 <p>Hi {user.first_name},</p>
-                <p>Thank you for joining Let's Tour Tec! Please confirm your email by clicking the button below:</p>
-                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirm email</a></p>
-                <p>The link expires in 48 hours. If you didn't register, you can ignore this email.</p>
-                <p>— The Let's Tour Tec team</p>
+                <p>I'm Miguel, the person behind Let's Tour Tec, and I wanted to personally thank you for signing up. It truly means a lot to me that you've decided to join this project.</p>
+                <p>To activate your account, just click the button below:</p>
+                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirm my email</a></p>
+                <p style="color:#888;font-size:0.85em;">This link expires in 48 hours. If you didn't sign up, you can ignore this email.</p>
+                <p>See you inside,<br>Miguel</p>
                 """
-                body_text = f"Hi {user.first_name},\n\nConfirm your email: {verify_url}\n\nExpires in 48 hours."
+                body_text = (
+                    f"Hi {user.first_name},\n\n"
+                    "I'm Miguel, the person behind Let's Tour Tec, and I wanted to personally thank you for signing up. "
+                    "It truly means a lot to me that you've decided to join this project.\n\n"
+                    f"Confirm your email here: {verify_url}\n\n"
+                    "This link expires in 48 hours. If you didn't sign up, you can ignore this email.\n\n"
+                    "See you inside,\nMiguel"
+                )
             else:
-                subject = "Confirma tu email – Let's Tour Tec"
+                subject = "Bienvenido/a a Let's Tour Tec – confirma tu email"
                 body_html = f"""
                 <p>Hola {user.first_name},</p>
-                <p>¡Gracias por unirte a Let's Tour Tec! Confirma tu dirección de email haciendo clic en el botón:</p>
-                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirmar email</a></p>
-                <p>El enlace caduca en 48 horas. Si no te has registrado, ignora este mensaje.</p>
-                <p>— El equipo de Let's Tour Tec</p>
+                <p>Soy Miguel, la persona detrás de Let's Tour Tec, y quería darte las gracias personalmente por registrarte. De verdad, significa mucho para mí que hayas decidido unirte a este proyecto.</p>
+                <p>Para activar tu cuenta, solo tienes que hacer clic en el botón de abajo:</p>
+                <p><a href="{verify_url}" style="background:#2a7d4f;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Confirmar mi email</a></p>
+                <p style="color:#888;font-size:0.85em;">Este enlace caduca en 48 horas. Si no te has registrado, puedes ignorar este mensaje.</p>
+                <p>Nos vemos dentro,<br>Miguel</p>
                 """
-                body_text = f"Hola {user.first_name},\n\nConfirma tu email: {verify_url}\n\nCaduca en 48 horas."
+                body_text = (
+                    f"Hola {user.first_name},\n\n"
+                    "Soy Miguel, la persona detrás de Let's Tour Tec, y quería darte las gracias personalmente por registrarte. "
+                    "De verdad, significa mucho para mí que hayas decidido unirte a este proyecto.\n\n"
+                    f"Para activar tu cuenta: {verify_url}\n\n"
+                    "Este enlace caduca en 48 horas. Si no te has registrado, puedes ignorar este mensaje.\n\n"
+                    "Nos vemos dentro,\nMiguel"
+                )
 
             from django.core.mail import EmailMultiAlternatives
             msg = EmailMultiAlternatives(
