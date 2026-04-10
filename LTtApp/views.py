@@ -289,6 +289,8 @@ def upload_tours(request):
             tour_en.save()
             
 
+            last_lat = None
+            last_lon = None
             for i in range(100):
                 has_data = (
                     f'tittle_{i}' in request.POST or
@@ -316,15 +318,19 @@ def upload_tours(request):
 
                 extra_latitude_key = f'extra_step_latitude_{i}'
                 if extra_latitude_key in request.POST and request.POST[extra_latitude_key]:
-                    lat = float(request.POST[extra_latitude_key])
-                    paso_es.latitude = lat
-                    paso_en.latitude = lat
+                    last_lat = float(request.POST[extra_latitude_key])
 
                 extra_longitude_key = f'extra_step_longitude_{i}'
                 if extra_longitude_key in request.POST and request.POST[extra_longitude_key]:
-                    lon = float(request.POST[extra_longitude_key])
-                    paso_es.longitude = lon
-                    paso_en.longitude = lon
+                    last_lon = float(request.POST[extra_longitude_key])
+
+                # Usar las coordenadas de este paso o heredar del paso anterior
+                if last_lat is not None:
+                    paso_es.latitude = last_lat
+                    paso_en.latitude = last_lat
+                if last_lon is not None:
+                    paso_es.longitude = last_lon
+                    paso_en.longitude = last_lon
 
                 if f'extra_step_image_{i}' in request.FILES:
                     extra_image_file = request.FILES[f'extra_step_image_{i}']
